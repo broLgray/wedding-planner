@@ -193,7 +193,6 @@ export default function WeddingPlanner() {
   const [newBudgetIcon, setNewBudgetIcon] = useState("📋");
   const [newBudgetAlloc, setNewBudgetAlloc] = useState("");
   const [newGuestName, setNewGuestName] = useState("");
-  const [showSaved, setShowSaved] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const saveTimeout = useRef(null);
   const lastKnownData = useRef(null);
@@ -321,8 +320,6 @@ export default function WeddingPlanner() {
       if (result.success) {
         lastKnownData.current = payloadStr; // Mark as known
         setSaveError(false);
-        setShowSaved(true);
-        setTimeout(() => setShowSaved(false), 1500);
       } else {
         setSaveError(true);
         setTimeout(() => setSaveError(false), 3000);
@@ -659,14 +656,6 @@ export default function WeddingPlanner() {
       <style>{`
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes savedPulse { 
-          0%, 100% { opacity: 0; transform: translateY(100%); } 
-          15%, 85% { opacity: 1; transform: translateY(0); } 
-        }
-        @keyframes savedPulseDesktop { 
-          0%, 100% { opacity: 0; transform: translateY(10px); } 
-          15%, 85% { opacity: 1; transform: translateY(0); } 
-        }
         .status-toast {
           position: fixed;
           bottom: 0;
@@ -678,7 +667,6 @@ export default function WeddingPlanner() {
           font-size: 13px;
           font-weight: 500;
           text-align: center;
-          animation: savedPulse 2s ease forwards;
         }
         @media (min-width: 768px) {
           .status-toast {
@@ -689,7 +677,6 @@ export default function WeddingPlanner() {
             border-radius: 8px;
             min-width: 120px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            animation-name: savedPulseDesktop;
           }
         }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
@@ -700,17 +687,6 @@ export default function WeddingPlanner() {
       `}</style>
 
       {/* Saved / Error Indicator */}
-      {showSaved && (
-        <div
-          className="status-toast"
-          style={{
-            background: "#4a3728",
-            color: "#faf5ef",
-          }}
-        >
-          ✓ Saved
-        </div>
-      )}
       {saveError && (
         <div
           className="status-toast"

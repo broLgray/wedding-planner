@@ -1553,21 +1553,22 @@ export default function WeddingPlanner() {
               </div>
 
 
-              <div style={{ gridColumn: "span 2", borderTop: "1px solid #efe8dc", paddingTop: "12px" }}>
+              <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #efe8dc", paddingTop: "16px", marginTop: "8px" }}>
                 {totalGuests > 0 && (
                   <div
                     style={{
-                      fontSize: "13px",
+                      fontSize: "16px",
                       color: "#a0917f",
                       fontFamily: "'DM Sans', sans-serif",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      gap: "6px",
+                      gap: "8px",
+                      marginBottom: "10px"
                     }}
                   >
                     <span>Est. catering (~${cateringPrice}/pp):</span>
-                    <span style={{ fontWeight: 600, color: "#4a3728" }}>
+                    <span style={{ fontWeight: 600, color: "#4a3728", fontSize: "18px" }}>
                       ${(totalGuests * cateringPrice).toLocaleString()}
                     </span>
                   </div>
@@ -1577,28 +1578,28 @@ export default function WeddingPlanner() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: "6px",
-                    marginTop: "8px",
-                    fontSize: "12px",
+                    gap: "8px",
+                    fontSize: "14px",
                     color: "#b5a898",
                   }}
                 >
-                  <span>Catering price: $</span>
+                  <span style={{ fontFamily: "'DM Sans', sans-serif" }}>Catering price: $</span>
                   <input
                     type="number"
                     value={cateringPrice}
                     onChange={(e) => setCateringPrice(Number(e.target.value))}
                     style={{
-                      width: "50px",
-                      padding: "2px",
+                      width: "60px",
+                      padding: "4px",
                       border: "none",
                       borderBottom: "1px solid #d4c8ba",
                       textAlign: "center",
                       fontFamily: "inherit",
-                      fontSize: "inherit",
+                      fontSize: "16px",
+                      fontWeight: "500",
                       background: "transparent",
                       color: "#4a3728",
-                      outline: "none",
+                      outline: "none"
                     }}
                   />
                 </div>

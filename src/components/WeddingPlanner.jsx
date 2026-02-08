@@ -4,6 +4,17 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "./AuthProvider";
 import { savePlannerData, loadPlannerData, deletePlannerData } from "@/lib/planner-data";
 import { getSupabase } from "@/lib/supabase";
+import {
+  fetchHouseholds,
+  createHousehold,
+  updateHousehold,
+  deleteHousehold,
+  addGuest,
+  updateGuest,
+  removeGuest,
+  migrateGuests
+} from "@/lib/guests";
+
 
 // ─── Default Data ──────────────────────────────────────────────
 const DEFAULT_BUDGET_CATEGORIES = [
@@ -174,12 +185,14 @@ export default function WeddingPlanner() {
     DEFAULT_BUDGET_CATEGORIES
   );
   const [timeline, setTimeline] = useState(DEFAULT_TIMELINE);
-  const [guests, setGuests] = useState(DEFAULT_GUESTS);
+  const [guests, setGuests] = useState([]); // Now using household/guest table format
+  const [households, setHouseholds] = useState([]);
   const [cateringPrice, setCateringPrice] = useState(150);
   const [notes, setNotes] = useState([]);
   const [quickNote, setQuickNote] = useState("");
   const [activeMenu, setActiveMenu] = useState(null);
   const [guestSearch, setGuestSearch] = useState("");
+  const [copyingLink, setCopyingLink] = useState(null);
 
   // Modals
   const [showAddTask, setShowAddTask] = useState(false);
@@ -187,7 +200,9 @@ export default function WeddingPlanner() {
   const [showAddBudget, setShowAddBudget] = useState(false);
   const [showAddGuest, setShowAddGuest] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showQRCode, setShowQRCode] = useState(null); // stores token for QR
   const [selectedPhase, setSelectedPhase] = useState("");
+
   const [newTaskText, setNewTaskText] = useState("");
   const [newPhaseName, setNewPhaseName] = useState("");
   const [newBudgetName, setNewBudgetName] = useState("");
@@ -211,24 +226,24 @@ export default function WeddingPlanner() {
     if (data.totalBudget) setTotalBudget(data.totalBudget);
     if (data.budgetCategories) setBudgetCategories(data.budgetCategories);
     if (data.timeline) setTimeline(data.timeline);
-    if (data.guests) {
-      // Migration/Hydration
-      const migrated = data.guests.map((g) => {
-        if (g.guests) return g; // Already migrated
-        return {
-          id: g.id || uid(),
-          name: `${g.name} Group`,
-          category: g.name,
-          guests: Array.from({ length: g.count || 0 }).map(() => ({
-            id: uid(),
-            name: "Guest",
-            rsvp: "pending",
-          })),
-        };
+
+    // Migration: If guest data exists in user_data, migrate to separate tables
+    if (data.guests && data.guests.length > 0) {
+      migrateGuests(data.guests).then(async () => {
+        // Clear guests from user_data after migration
+        const currentData = await loadPlannerData();
+        if (currentData && currentData.guests) {
+          delete currentData.guests;
+          await savePlannerData(currentData);
+        }
+        // Refresh households
+        const hData = await fetchHouseholds();
+        setHouseholds(hData);
       });
-      setGuests(migrated);
     }
+
     if (data.cateringPrice) setCateringPrice(data.cateringPrice);
+
     if (data.notes !== undefined) {
       if (typeof data.notes === "string") {
         setNotes([{ id: uid(), text: data.notes, date: new Date().toLocaleDateString() }]);
@@ -243,36 +258,48 @@ export default function WeddingPlanner() {
     let channel;
 
     (async () => {
-      // 1. Initial Load
+      // 1. Initial Load (Main Data)
       const data = await loadPlannerData();
       if (data) hydrateStates(data);
+
+      // 2. Load Guests from separate tables
+      const hData = await fetchHouseholds();
+      setHouseholds(hData);
+
       setLoaded(true);
 
-      // 2. Setup Realtime subscription
+      // 3. Setup Realtime subscription for planner data
       const supabase = getSupabase();
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
         channel = supabase
-          .channel('realtime_planner')
+          .channel('realtime_planner_all')
           .on(
             'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'user_data',
-              filter: `user_id=eq.${user.id}`,
-            },
-            (payload) => {
-              if (payload.new && payload.new.data) {
-                // Only update if it's external (optional check, but good for stability)
-                hydrateStates(payload.new.data);
-              }
+            { event: '*', schema: 'public', table: 'user_data', filter: `user_id=eq.${user.id}` },
+            (payload) => { if (payload.new && payload.new.data) hydrateStates(payload.new.data); }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'households', filter: `user_id=eq.${user.id}` },
+            async () => {
+              const updatedHouseholds = await fetchHouseholds();
+              setHouseholds(updatedHouseholds);
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'guests' },
+            async () => {
+              const updatedHouseholds = await fetchHouseholds();
+              setHouseholds(updatedHouseholds);
             }
           )
           .subscribe();
       }
     })();
+
 
     return () => {
       if (channel) {
@@ -299,11 +326,12 @@ export default function WeddingPlanner() {
       totalBudget,
       budgetCategories,
       timeline,
-      guests,
+      // guests is now stored in separate tables
       cateringPrice,
       notes,
     }),
-    [weddingDate, partnerNames, totalBudget, budgetCategories, timeline, guests, cateringPrice, notes]
+    [weddingDate, partnerNames, totalBudget, budgetCategories, timeline, cateringPrice, notes]
+
   );
 
   // Auto-save with debounce
@@ -336,10 +364,13 @@ export default function WeddingPlanner() {
     (a, p) => a + p.tasks.filter((t) => t.done).length,
     0
   );
-  const totalGuests = guests.reduce((a, h) => a + (h.guests?.length || 0), 0);
-  const totalInvitations = guests.length;
+  const totalGuests = households.reduce((a, h) => a + (h.guests?.length || 0), 0);
+  const totalInvitations = households.length;
+  const attendingGuests = households.reduce((a, h) =>
+    a + (h.guests?.filter(g => g.rsvp_status === 'attending').length || 0), 0
+  );
 
-  const filteredHouseholds = (guests || []).filter(h => {
+  const filteredHouseholds = households.filter(h => {
     const search = guestSearch.toLowerCase().trim();
     if (!search) return true;
     const householdMatches = h.name.toLowerCase().includes(search);
@@ -464,71 +495,65 @@ export default function WeddingPlanner() {
     );
   };
 
-  const addGuestCategory = () => {
+  const addGuestCategory = async () => {
     if (!newGuestName.trim()) return;
-    setGuests((prev) => [
-      ...prev,
-      {
-        id: uid(),
-        name: newGuestName.trim(),
-        category: "Other",
-        guests: [{ id: uid(), name: "First Guest", rsvp: "pending" }],
-      },
-    ]);
+    const result = await createHousehold(newGuestName.trim(), "Other", [{ name: "Guest" }]);
+    if (result) {
+      const hData = await fetchHouseholds();
+      setHouseholds(hData);
+    }
     setNewGuestName("");
     setShowAddGuest(false);
   };
 
-  const addIndividualGuest = (householdId) => {
-    setGuests((prev) =>
-      prev.map((h) =>
-        h.id === householdId
-          ? {
-            ...h,
-            guests: [
-              ...(h.guests || []),
-              { id: uid(), name: "", rsvp: "pending" },
-            ],
-          }
-          : h
-      )
-    );
+  const addIndividualGuest = async (householdId) => {
+    const result = await addGuest(householdId);
+    if (result) {
+      const hData = await fetchHouseholds();
+      setHouseholds(hData);
+    }
   };
 
-  const updateIndividualGuest = (householdId, guestId, updates) => {
-    setGuests((prev) =>
-      prev.map((h) =>
-        h.id === householdId
-          ? {
-            ...h,
-            guests: h.guests.map((g) =>
-              g.id === guestId ? { ...g, ...updates } : g
-            ),
-          }
-          : h
-      )
-    );
+  const updateIndividualGuest = async (householdId, guestId, updates) => {
+    const result = await updateGuest(guestId, updates);
+    if (result) {
+      const hData = await fetchHouseholds();
+      setHouseholds(hData);
+    }
   };
 
-  const removeIndividualGuest = (householdId, guestId) => {
-    setGuests((prev) =>
-      prev.map((h) =>
-        h.id === householdId
-          ? { ...h, guests: h.guests.filter((g) => g.id !== guestId) }
-          : h
-      )
-    );
+  const removeIndividualGuest = async (householdId, guestId) => {
+    const result = await removeGuest(guestId);
+    if (result) {
+      const hData = await fetchHouseholds();
+      setHouseholds(hData);
+    }
   };
 
-  const updateHousehold = (householdId, updates) => {
-    setGuests((prev) =>
-      prev.map((h) => (h.id === householdId ? { ...h, ...updates } : h))
-    );
+  const updateHouseholdDetails = async (householdId, updates) => {
+    const result = await updateHousehold(householdId, updates);
+    if (result) {
+      const hData = await fetchHouseholds();
+      setHouseholds(hData);
+    }
   };
 
-  const deleteGuestCategory = (hId) => {
-    setGuests((prev) => prev.filter((h) => h.id !== hId));
+  const deleteGuestCategory = async (hId) => {
+    if (!confirm("Are you sure you want to delete this group?")) return;
+    const result = await deleteHousehold(hId);
+    if (result) {
+      const hData = await fetchHouseholds();
+      setHouseholds(hData);
+    }
   };
+
+  const copyRSVPLink = (token) => {
+    const link = `${window.location.origin}/rsvp/${token}`;
+    navigator.clipboard.writeText(link);
+    setCopyingLink(token);
+    setTimeout(() => setCopyingLink(null), 2000);
+  };
+
 
   const resetAll = async () => {
     await deletePlannerData();
@@ -1452,6 +1477,13 @@ export default function WeddingPlanner() {
                 </div>
                 <p style={sectionLabel}>Invitations</p>
               </div>
+              <div style={{ gridColumn: "span 2", marginBottom: "-10px" }}>
+                <div style={{ fontSize: "36px", fontWeight: 300, color: "#7da07d" }}>
+                  {attendingGuests}
+                </div>
+                <p style={sectionLabel}>Attending</p>
+              </div>
+
 
               <div style={{ gridColumn: "span 2", borderTop: "1px solid #efe8dc", paddingTop: "12px" }}>
                 {totalGuests > 0 && (
@@ -1537,7 +1569,8 @@ export default function WeddingPlanner() {
                   <input
                     type="text"
                     value={h.name}
-                    onChange={(e) => updateHousehold(h.id, { name: e.target.value })}
+                    onChange={(e) => updateHouseholdDetails(h.id, { name: e.target.value })}
+
                     placeholder="Household Name (e.g. The Smiths)"
                     style={{
                       fontSize: "18px",
@@ -1586,6 +1619,42 @@ export default function WeddingPlanner() {
                         }}
                       >
                         <button
+                          onClick={() => copyRSVPLink(h.rsvp_token)}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            padding: "8px 12px",
+                            textAlign: "left",
+                            background: "transparent",
+                            border: "none",
+                            color: "#4a3728",
+                            fontFamily: "'DM Sans', sans-serif",
+                            fontSize: "13px",
+                            cursor: "pointer",
+                            borderBottom: "1px solid #f0e6da"
+                          }}
+                        >
+                          {copyingLink === h.rsvp_token ? "✓ Link Copied" : "Copy RSVP Link"}
+                        </button>
+                        <button
+                          onClick={() => setShowQRCode(h.rsvp_token)}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            padding: "8px 12px",
+                            textAlign: "left",
+                            background: "transparent",
+                            border: "none",
+                            color: "#4a3728",
+                            fontFamily: "'DM Sans', sans-serif",
+                            fontSize: "13px",
+                            cursor: "pointer",
+                            borderBottom: "1px solid #f0e6da"
+                          }}
+                        >
+                          Show QR Code
+                        </button>
+                        <button
                           onClick={() => deleteGuestCategory(h.id)}
                           style={{
                             display: "block",
@@ -1602,10 +1671,12 @@ export default function WeddingPlanner() {
                         >
                           Delete Household
                         </button>
+
                       </div>
                     )}
                   </div>
                 </div>
+
 
                 {/* Tracking Row */}
                 <div
@@ -1620,8 +1691,8 @@ export default function WeddingPlanner() {
                   <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#7a6a5a", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
                     <input
                       type="checkbox"
-                      checked={!!h.invitationSent}
-                      onChange={(e) => updateHousehold(h.id, { invitationSent: e.target.checked })}
+                      checked={!!h.invitation_sent}
+                      onChange={(e) => updateHouseholdDetails(h.id, { invitation_sent: e.target.checked })}
                       style={{ cursor: "pointer", accentColor: "#4a3728" }}
                     />
                     Invitation Sent
@@ -1629,12 +1700,13 @@ export default function WeddingPlanner() {
                   <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#7a6a5a", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
                     <input
                       type="checkbox"
-                      checked={!!h.thankYouSent}
-                      onChange={(e) => updateHousehold(h.id, { thankYouSent: e.target.checked })}
+                      checked={!!h.thank_you_sent}
+                      onChange={(e) => updateHouseholdDetails(h.id, { thank_you_sent: e.target.checked })}
                       style={{ cursor: "pointer", accentColor: "#4a3728" }}
                     />
                     Thank You Sent
                   </label>
+
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -1645,73 +1717,54 @@ export default function WeddingPlanner() {
                         display: "flex",
                         alignItems: "center",
                         gap: "10px",
-                        paddingBottom: "8px",
-                        borderBottom: "1px solid rgba(140,110,85,0.05)",
+                        background: "#faf5ef",
+                        padding: "8px 12px",
+                        borderRadius: "8px",
                       }}
                     >
                       <input
                         type="text"
                         value={g.name}
-                        onChange={(e) =>
-                          updateIndividualGuest(h.id, g.id, { name: e.target.value })
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            addIndividualGuest(h.id);
-                            // Brief timeout to let React render the new row
-                            setTimeout(() => {
-                              const householdList = e.target.closest("div[style*='flex-direction: column']");
-                              if (householdList) {
-                                const inputs = householdList.querySelectorAll("input[type='text']");
-                                const lastInput = inputs[inputs.length - 1];
-                                if (lastInput) lastInput.focus();
-                              }
-                            }, 50);
-                          }
-                        }}
-                        placeholder="Guest name"
+                        onChange={(e) => updateIndividualGuest(h.id, g.id, { name: e.target.value })}
+                        placeholder="Guest Name"
                         style={{
                           flex: 1,
-                          fontSize: "15px",
                           border: "none",
                           background: "transparent",
-                          fontFamily: "inherit",
+                          fontFamily: "'Cormorant Garamond', serif",
+                          fontSize: "16px",
                           color: "#3d2e1f",
                           outline: "none",
                         }}
                       />
-                      <select
-                        value={g.rsvp || "pending"}
-                        onChange={(e) =>
-                          updateIndividualGuest(h.id, g.id, { rsvp: e.target.value })
-                        }
+                      <div
                         style={{
-                          fontSize: "12px",
-                          padding: "4px 8px",
-                          borderRadius: "6px",
-                          border: "1px solid rgba(140,110,85,0.15)",
-                          background: g.rsvp === "attending" ? "#f0f7f0" : g.rsvp === "declined" ? "#fdf2f2" : "#fdf8f2",
-                          color: g.rsvp === "attending" ? "#2d5a27" : g.rsvp === "declined" ? "#a33a3a" : "#7a6a5a",
-                          outline: "none",
-                          cursor: "pointer",
+                          fontSize: "10px",
+                          fontFamily: "'DM Sans', sans-serif",
+                          textTransform: "uppercase",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          background:
+                            g.rsvp_status === 'attending' ? '#e7f3e7' :
+                              g.rsvp_status === 'declined' ? '#fdeced' : '#f0e6da',
+                          color:
+                            g.rsvp_status === 'attending' ? '#2d5e2d' :
+                              g.rsvp_status === 'declined' ? '#a33b3b' : '#a0917f',
                         }}
                       >
-                        <option value="pending">Pending</option>
-                        <option value="attending">Attending</option>
-                        <option value="declined">Declined</option>
-                      </select>
+                        {g.rsvp_status || 'pending'}
+                      </div>
                       <button
                         onClick={() => removeIndividualGuest(h.id, g.id)}
                         style={{
                           background: "none",
                           border: "none",
                           color: "#d4c8ba",
-                          fontSize: "16px",
                           cursor: "pointer",
-                          padding: "0 4px",
+                          fontSize: "14px",
                         }}
                       >
-                        ×
+                        ✕
                       </button>
                     </div>
                   ))}
@@ -1730,6 +1783,7 @@ export default function WeddingPlanner() {
                 </div>
               </div>
             ))}
+
 
             <button
               onClick={() => setShowAddGuest(true)}
@@ -2083,6 +2137,39 @@ export default function WeddingPlanner() {
           Reset All Data
         </button>
       </Modal>
-    </div>
+      {/* QR Code Modal */}
+      <Modal
+        isOpen={!!showQRCode}
+        onClose={() => setShowQRCode(null)}
+        title="RSVP QR Code"
+      >
+        <div style={{ textAlign: "center", padding: "10px 0" }}>
+          <p style={{ ...sectionLabel, marginBottom: "20px" }}>Share this with your guests</p>
+          <div style={{
+            background: "#fff",
+            padding: "20px",
+            borderRadius: "16px",
+            display: "inline-block",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
+          }}>
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/rsvp/${showQRCode}` : '')}`}
+              alt="QR Code"
+              style={{ display: "block", width: "200px", height: "200px" }}
+            />
+          </div>
+          <p style={{
+            marginTop: "20px",
+            fontSize: "14px",
+            color: "#a0917f",
+            fontFamily: "'DM Sans', sans-serif"
+          }}>
+            Guests can scan this to RSVP directly.
+          </p>
+        </div>
+      </Modal>
+
+    </div >
+
   );
 }

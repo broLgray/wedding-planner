@@ -239,9 +239,28 @@ export async function findHouseholdsByName(searchTerm) {
     const supabase = getSupabase();
     if (!searchTerm || searchTerm.length < 2) return [];
 
-    const cleanTerm = searchTerm.trim();
+    const cleanTerm = searchTerm.trim().toLowerCase();
+    const words = cleanTerm.split(/\s+/).filter(w => w.length >= 2);
+    if (words.length === 0) return [];
 
-    // 1. Search Guests first (most common way people search)
+    // 1. Fetch households that match ANY of the words (broad net)
+    const orConditions = words.map(w => `name.ilike.%${w}%`).join(",");
+
+    const { data: householdEntries, error: hError } = await supabase
+        .from("households")
+        .select(`
+            id,
+            name,
+            rsvp_token,
+            user_id
+        `)
+        .or(orConditions)
+        .limit(50);
+
+    if (hError) console.error("Household search error:", hError);
+
+    // 2. Fetch guests that match ANY of the words
+    const guestOrConditions = words.map(w => `name.ilike.%${w}%`).join(",");
     const { data: guestEntries, error: gError } = await supabase
         .from("guests")
         .select(`
@@ -253,29 +272,16 @@ export async function findHouseholdsByName(searchTerm) {
                 user_id
             )
         `)
-        .ilike("name", `%${cleanTerm}%`)
-        .limit(10);
+        .or(guestOrConditions)
+        .limit(100);
 
     if (gError) console.error("Guest search error:", gError);
 
-    // 2. Search Households by group name
-    const { data: householdEntries, error: hError } = await supabase
-        .from("households")
-        .select(`
-            id,
-            name,
-            rsvp_token,
-            user_id
-        `)
-        .ilike("name", `%${cleanTerm}%`)
-        .limit(10);
-
-    if (hError) console.error("Household search error:", hError);
-
-    // 3. Merge and De-duplicate results
+    // 3. Collect unique households from both sources
     const householdMap = new Map();
-
-    // Process guest matches
+    if (householdEntries) {
+        householdEntries.forEach(h => householdMap.set(h.id, h));
+    }
     if (guestEntries) {
         guestEntries.forEach(entry => {
             if (entry.household) {
@@ -284,31 +290,34 @@ export async function findHouseholdsByName(searchTerm) {
         });
     }
 
-    // Process household matches
-    if (householdEntries) {
-        householdEntries.forEach(h => {
-            householdMap.set(h.id, h);
-        });
-    }
+    const candidateHouseholds = Array.from(householdMap.values());
 
-    const households = Array.from(householdMap.values());
-
-    // 4. Fetch full guest lists and couple names for the results
-    const results = await Promise.all(households.map(async (h) => {
-        // Fetch ALL guests for this household so we can show them in the preview
+    // 4. Strict Filtering & Enrichment
+    // A household is a match only if ALL words in the search query match 
+    // either the household name itself or one of its guests.
+    const results = [];
+    for (const h of candidateHouseholds) {
+        // Fetch all guests for this household to check for word coverage
         const { data: allGuests } = await supabase
             .from("guests")
             .select("name")
             .eq("household_id", h.id);
 
-        const profile = await fetchWeddingProfile(h.user_id);
+        const guestNames = (allGuests || []).map(g => g.name.toLowerCase());
+        const compositeLabel = (h.name + " " + guestNames.join(" ")).toLowerCase();
 
-        return {
-            ...h,
-            guests: allGuests || [],
-            couple: profile?.partner_names || "A Wedding"
-        };
-    }));
+        // Check if every word of the search term exists in the composite label
+        const allWordsMatch = words.every(word => compositeLabel.includes(word));
+
+        if (allWordsMatch) {
+            const profile = await fetchWeddingProfile(h.user_id);
+            results.push({
+                ...h,
+                guests: allGuests || [],
+                couple: profile?.partner_names || "A Wedding"
+            });
+        }
+    }
 
     return results;
 }

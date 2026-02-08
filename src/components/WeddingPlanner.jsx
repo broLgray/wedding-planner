@@ -173,6 +173,12 @@ function Modal({ isOpen, onClose, title, children }) {
   );
 }
 
+const getSurname = (householdName) => {
+  if (!householdName) return "";
+  const parts = householdName.replace(/Family/i, "").trim().split(/\s+/);
+  return parts[parts.length - 1]; // Take the last word before "Family" or the last word in general
+};
+
 // ─── Main App ──────────────────────────────────────────────────
 export default function WeddingPlanner() {
   const { user, signOut } = useAuth();
@@ -212,6 +218,7 @@ export default function WeddingPlanner() {
   const [newBudgetIcon, setNewBudgetIcon] = useState("📋");
   const [newBudgetAlloc, setNewBudgetAlloc] = useState("");
   const [newGuestName, setNewGuestName] = useState("");
+  const [newGuestIsFamily, setNewGuestIsFamily] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const saveTimeout = useRef(null);
   const lastKnownData = useRef(null);
@@ -512,7 +519,8 @@ export default function WeddingPlanner() {
 
   const addGuestCategory = async () => {
     if (!newGuestName.trim()) return;
-    const result = await createHousehold(newGuestName.trim(), "Other", [{ name: "" }]);
+    const name = newGuestIsFamily ? (newGuestName.trim().endsWith("Family") ? newGuestName.trim() : `${newGuestName.trim()} Family`) : newGuestName.trim();
+    const result = await createHousehold(name, "Other", [{ name: "" }], newGuestIsFamily);
     if (result) {
       const hData = await fetchHouseholds();
       setHouseholds(hData);
@@ -521,6 +529,7 @@ export default function WeddingPlanner() {
       setDbError("Database error. Please check if your Supabase tables are set up correctly.");
     }
     setNewGuestName("");
+    setNewGuestIsFamily(false);
     setShowAddGuest(false);
   };
 
@@ -534,7 +543,18 @@ export default function WeddingPlanner() {
   };
 
   const updateIndividualGuest = async (householdId, guestId, updates, localOnly = false) => {
-    // 1. Optimistic Update
+    // 1. Smart Name Suggestion
+    if (updates.name && !localOnly) {
+      const h = households.find(h => h.id === householdId);
+      if (h && h.is_family) {
+        const surname = getSurname(h.name);
+        if (surname && updates.name.split(/\s+/).length === 1 && !updates.name.toLowerCase().includes(surname.toLowerCase())) {
+          updates.name = `${updates.name.trim()} ${surname}`;
+        }
+      }
+    }
+
+    // 2. Optimistic Update
     setHouseholds(prev => prev.map(h =>
       h.id === householdId
         ? { ...h, guests: h.guests.map(g => g.id === guestId ? { ...g, ...updates } : g) }
@@ -542,15 +562,8 @@ export default function WeddingPlanner() {
     ));
 
     if (localOnly) return;
-
-    // 2. Sync to DB
+    // 3. Sync to DB
     const result = await updateGuest(guestId, updates);
-    if (result) {
-      // Optional: re-fetch if you want to ensure total sync, 
-      // but for name changes it's often not needed if local update is correct.
-      // const hData = await fetchHouseholds();
-      // setHouseholds(hData);
-    }
   };
 
   const removeIndividualGuest = async (householdId, guestId) => {
@@ -1523,399 +1536,409 @@ export default function WeddingPlanner() {
 
         {/* ═══ GUESTS ═══ */}
         {activeTab === "guests" && (
-          <div style={{ animation: "fadeIn 0.3s ease" }}>
-            <div
-              style={{
-                ...card,
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                textAlign: "center",
-                gap: "20px",
-              }}
-            >
-              <div>
-                <div style={{ fontSize: "36px", fontWeight: 300 }}>
-                  {totalGuests}
+          <>
+            <div style={{ animation: "fadeIn 0.3s ease" }}>
+              <div
+                style={{
+                  ...card,
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr",
+                  textAlign: "center",
+                  gap: "20px",
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: "36px", fontWeight: 300 }}>
+                    {totalGuests}
+                  </div>
+                  <p style={sectionLabel}>Total Guests</p>
                 </div>
-                <p style={sectionLabel}>Total Guests</p>
-              </div>
-              <div>
-                <div style={{ fontSize: "36px", fontWeight: 300 }}>
-                  {totalInvitations}
+                <div>
+                  <div style={{ fontSize: "36px", fontWeight: 300 }}>
+                    {totalInvitations}
+                  </div>
+                  <p style={sectionLabel}>Invitations</p>
                 </div>
-                <p style={sectionLabel}>Invitations</p>
-              </div>
-              <div>
-                <div style={{ fontSize: "36px", fontWeight: 300, color: "#7da07d" }}>
-                  {attendingGuests}
+                <div>
+                  <div style={{ fontSize: "36px", fontWeight: 300, color: "#7da07d" }}>
+                    {attendingGuests}
+                  </div>
+                  <p style={sectionLabel}>Attending</p>
                 </div>
-                <p style={sectionLabel}>Attending</p>
-              </div>
 
 
-              <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #efe8dc", paddingTop: "16px", marginTop: "8px" }}>
-                {totalGuests > 0 && (
+                <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #efe8dc", paddingTop: "16px", marginTop: "8px" }}>
+                  {totalGuests > 0 && (
+                    <div
+                      style={{
+                        fontSize: "16px",
+                        color: "#a0917f",
+                        fontFamily: "'DM Sans', sans-serif",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                        marginBottom: "10px"
+                      }}
+                    >
+                      <span>Est. catering (~${cateringPrice}/pp):</span>
+                      <span style={{ fontWeight: 600, color: "#4a3728", fontSize: "18px" }}>
+                        ${(totalGuests * cateringPrice).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
                   <div
                     style={{
-                      fontSize: "16px",
-                      color: "#a0917f",
-                      fontFamily: "'DM Sans', sans-serif",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       gap: "8px",
-                      marginBottom: "10px"
+                      fontSize: "14px",
+                      color: "#b5a898",
+                      marginBottom: "12px"
                     }}
                   >
-                    <span>Est. catering (~${cateringPrice}/pp):</span>
-                    <span style={{ fontWeight: 600, color: "#4a3728", fontSize: "18px" }}>
-                      ${(totalGuests * cateringPrice).toLocaleString()}
-                    </span>
-                  </div>
-                )}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                    fontSize: "14px",
-                    color: "#b5a898",
-                    marginBottom: "12px"
-                  }}
-                >
-                  <span style={{ fontFamily: "'DM Sans', sans-serif" }}>Catering price: $</span>
-                  <input
-                    type="number"
-                    value={cateringPrice}
-                    onChange={(e) => setCateringPrice(Number(e.target.value))}
-                    style={{
-                      width: "60px",
-                      padding: "4px",
-                      border: "none",
-                      borderBottom: "1px solid #d4c8ba",
-                      textAlign: "center",
-                      fontFamily: "inherit",
-                      fontSize: "16px",
-                      fontWeight: "500",
-                      background: "transparent",
-                      color: "#4a3728",
-                      outline: "none"
-                    }}
-                  />
-                </div>
-
-                <div style={{ padding: "0 20px" }}>
-                  <button
-                    onClick={() => setShowQRCode("general")}
-                    style={{
-                      ...btnPrimary,
-                      background: "transparent",
-                      border: "1px solid #d4c8ba",
-                      color: "#6b5443",
-                      fontSize: "13px",
-                      padding: "10px 20px",
-                      width: "auto",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      margin: "0 auto"
-                    }}
-                  >
-                    🔍 General RSVP Link & QR
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ ...card, padding: "12px", marginBottom: "16px" }}>
-              <div style={{ position: "relative" }}>
-                <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#b5a898" }}>🔍</span>
-                <input
-                  type="text"
-                  placeholder="Search guests or households..."
-                  value={guestSearch}
-                  onChange={(e) => setGuestSearch(e.target.value)}
-                  style={{
-                    ...inputStyle,
-                    margin: 0,
-                    paddingLeft: "36px",
-                    background: "#fff",
-                    borderColor: "rgba(140,110,85,0.15)",
-                  }}
-                />
-              </div>
-            </div>
-
-            {filteredHouseholds.map((h) => (
-              <div key={h.id} style={{ ...card, padding: "18px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "8px",
-                  }}
-                >
-                  <input
-                    type="text"
-                    value={h.name}
-                    onChange={(e) => updateHouseholdDetails(h.id, { name: e.target.value }, true)}
-                    onBlur={(e) => {
-                      updateHouseholdDetails(h.id, { name: e.target.value }, false);
-                      e.target.style.borderBottom = "transparent";
-                    }}
-                    placeholder="Household Name (e.g. The Smiths)"
-                    style={{
-                      fontSize: "18px",
-                      fontWeight: 500,
-                      border: "none",
-                      background: "transparent",
-                      color: "#3d2e1f",
-                      fontFamily: "'Cormorant Garamond', serif",
-                      width: "70%",
-                      outline: "none",
-                      borderBottom: "1px dashed transparent",
-                    }}
-                    onFocus={(e) => (e.target.style.borderBottom = "1px dashed #d4c8ba")}
-                  />
-                  <div style={{ position: "relative" }}>
-                    <button
-                      className="guest-menu-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveMenu(activeMenu === h.id ? null : h.id);
-                      }}
+                    <span style={{ fontFamily: "'DM Sans', sans-serif" }}>Catering price: $</span>
+                    <input
+                      type="number"
+                      value={cateringPrice}
+                      onChange={(e) => setCateringPrice(Number(e.target.value))}
                       style={{
-                        background: "none",
-                        border: "none",
-                        color: "#d4c8ba",
-                        cursor: "pointer",
-                        fontSize: "18px",
+                        width: "60px",
                         padding: "4px",
+                        border: "none",
+                        borderBottom: "1px solid #d4c8ba",
+                        textAlign: "center",
+                        fontFamily: "inherit",
+                        fontSize: "16px",
+                        fontWeight: "500",
+                        background: "transparent",
+                        color: "#4a3728",
+                        outline: "none"
                       }}
-                    >
-                      •••
-                    </button>
-                    {activeMenu === h.id && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: "100%",
-                          right: 0,
-                          background: "#fff",
-                          boxShadow: "0 2px 10px rgba(60,45,30,0.1)",
-                          borderRadius: "8px",
-                          padding: "4px",
-                          zIndex: 10,
-                          minWidth: "140px",
-                        }}
-                      >
-                        <button
-                          onClick={() => copyRSVPLink(h.rsvp_token)}
-                          style={{
-                            display: "block",
-                            width: "100%",
-                            padding: "8px 12px",
-                            textAlign: "left",
-                            background: "transparent",
-                            border: "none",
-                            color: "#4a3728",
-                            fontFamily: "'DM Sans', sans-serif",
-                            fontSize: "13px",
-                            cursor: "pointer",
-                            borderBottom: "1px solid #f0e6da"
-                          }}
-                        >
-                          {copyingLink === h.rsvp_token ? "✓ Link Copied" : "Copy RSVP Link"}
-                        </button>
-                        <button
-                          onClick={() => setShowQRCode(h.rsvp_token)}
-                          style={{
-                            display: "block",
-                            width: "100%",
-                            padding: "8px 12px",
-                            textAlign: "left",
-                            background: "transparent",
-                            border: "none",
-                            color: "#4a3728",
-                            fontFamily: "'DM Sans', sans-serif",
-                            fontSize: "13px",
-                            cursor: "pointer",
-                            borderBottom: "1px solid #f0e6da"
-                          }}
-                        >
-                          Show QR Code
-                        </button>
-                        <button
-                          onClick={() => deleteGuestCategory(h.id)}
-                          style={{
-                            display: "block",
-                            width: "100%",
-                            padding: "8px 12px",
-                            textAlign: "left",
-                            background: "transparent",
-                            border: "none",
-                            color: "#c0705b",
-                            fontFamily: "'DM Sans', sans-serif",
-                            fontSize: "13px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Delete Household
-                        </button>
-
-                      </div>
-                    )}
+                    />
                   </div>
-                </div>
 
-
-                {/* Tracking Row */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "24px",
-                    marginBottom: "16px",
-                    paddingBottom: "12px",
-                    borderBottom: "1px solid rgba(140,110,85,0.1)",
-                  }}
-                >
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#7a6a5a", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-                    <input
-                      type="checkbox"
-                      checked={!!h.invitation_sent}
-                      onChange={(e) => updateHouseholdDetails(h.id, { invitation_sent: e.target.checked })}
-                      style={{ cursor: "pointer", accentColor: "#4a3728" }}
-                    />
-                    Invitation Sent
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#7a6a5a", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-                    <input
-                      type="checkbox"
-                      checked={!!h.thank_you_sent}
-                      onChange={(e) => updateHouseholdDetails(h.id, { thank_you_sent: e.target.checked })}
-                      style={{ cursor: "pointer", accentColor: "#4a3728" }}
-                    />
-                    Thank You Sent
-                  </label>
-
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {h.guests.map((g) => (
-                    <div
-                      key={g.id}
+                  <div style={{ padding: "0 20px" }}>
+                    <button
+                      onClick={() => setShowQRCode("general")}
                       style={{
+                        ...btnPrimary,
+                        background: "transparent",
+                        border: "1px solid #d4c8ba",
+                        color: "#6b5443",
+                        fontSize: "13px",
+                        padding: "10px 20px",
+                        width: "auto",
                         display: "flex",
                         alignItems: "center",
-                        gap: "10px",
-                        background: "#faf5ef",
-                        padding: "8px 12px",
-                        borderRadius: "8px",
+                        gap: "8px",
+                        margin: "0 auto"
                       }}
                     >
-                      <input
-                        type="text"
-                        value={g.name}
-                        onChange={(e) => updateIndividualGuest(h.id, g.id, { name: e.target.value }, true)}
-                        onBlur={(e) => updateIndividualGuest(h.id, g.id, { name: e.target.value }, false)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            // First, ensure the current name is saved to DB
-                            updateIndividualGuest(h.id, g.id, { name: e.target.value }, false);
-                            // Then add the new guest
-                            addIndividualGuest(h.id);
-                          }
-                        }}
-                        autoFocus={!g.name} // Autofocus if name is empty (newly added)
-                        placeholder="Guest"
-                        style={{
-                          flex: 1,
-                          border: "none",
-                          background: "transparent",
-                          fontFamily: "'Cormorant Garamond', serif",
-                          fontSize: "16px",
-                          color: "#3d2e1f",
-                          outline: "none",
-                        }}
-                      />
-                      <select
-                        value={g.rsvp_status || 'pending'}
-                        onChange={(e) => updateIndividualGuest(h.id, g.id, { rsvp_status: e.target.value })}
-                        style={{
-                          fontSize: "10px",
-                          fontFamily: "'DM Sans', sans-serif",
-                          textTransform: "uppercase",
-                          padding: "4px 8px",
-                          borderRadius: "4px",
-                          border: "1px solid transparent",
-                          background:
-                            g.rsvp_status === 'attending' ? '#e7f3e7' :
-                              g.rsvp_status === 'declined' ? '#fdeced' : '#f0e6da',
-                          color:
-                            g.rsvp_status === 'attending' ? '#2d5e2d' :
-                              g.rsvp_status === 'declined' ? '#a33b3b' : '#a0917f',
-                          cursor: "pointer",
-                          outline: "none",
-                        }}
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="attending">Attending</option>
-                        <option value="declined">Declined</option>
-                      </select>
+                      🔍 General RSVP Link & QR
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ ...card, padding: "12px", marginBottom: "16px" }}>
+                <div style={{ position: "relative" }}>
+                  <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#b5a898" }}>🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Search guests or households..."
+                    value={guestSearch}
+                    onChange={(e) => setGuestSearch(e.target.value)}
+                    style={{
+                      ...inputStyle,
+                      margin: 0,
+                      paddingLeft: "36px",
+                      background: "#fff",
+                      borderColor: "rgba(140,110,85,0.15)",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {filteredHouseholds.map((h) => (
+                <div key={h.id} style={{ ...card, padding: "18px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={h.name}
+                      onChange={(e) => updateHouseholdDetails(h.id, { name: e.target.value }, true)}
+                      onBlur={(e) => {
+                        updateHouseholdDetails(h.id, { name: e.target.value }, false);
+                        e.target.style.borderBottom = "transparent";
+                      }}
+                      placeholder="Household Name (e.g. The Smiths)"
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: 500,
+                        border: "none",
+                        background: "transparent",
+                        color: "#3d2e1f",
+                        fontFamily: "'Cormorant Garamond', serif",
+                        width: "70%",
+                        outline: "none",
+                        borderBottom: "1px dashed transparent",
+                      }}
+                      onFocus={(e) => (e.target.style.borderBottom = "1px dashed #d4c8ba")}
+                    />
+                    <div style={{ position: "relative" }}>
                       <button
-                        onClick={() => removeIndividualGuest(h.id, g.id)}
+                        className="guest-menu-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenu(activeMenu === h.id ? null : h.id);
+                        }}
                         style={{
                           background: "none",
                           border: "none",
                           color: "#d4c8ba",
                           cursor: "pointer",
-                          fontSize: "14px",
+                          fontSize: "18px",
+                          padding: "4px",
                         }}
                       >
-                        ✕
+                        •••
                       </button>
+                      {activeMenu === h.id && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "100%",
+                            right: 0,
+                            background: "#fff",
+                            boxShadow: "0 2px 10px rgba(60,45,30,0.1)",
+                            borderRadius: "8px",
+                            padding: "4px",
+                            zIndex: 10,
+                            minWidth: "140px",
+                          }}
+                        >
+                          <button
+                            onClick={() => copyRSVPLink(h.rsvp_token)}
+                            style={{
+                              display: "block",
+                              width: "100%",
+                              padding: "8px 12px",
+                              textAlign: "left",
+                              background: "transparent",
+                              border: "none",
+                              color: "#4a3728",
+                              fontFamily: "'DM Sans', sans-serif",
+                              fontSize: "13px",
+                              cursor: "pointer",
+                              borderBottom: "1px solid #f0e6da"
+                            }}
+                          >
+                            {copyingLink === h.rsvp_token ? "✓ Link Copied" : "Copy RSVP Link"}
+                          </button>
+                          <button
+                            onClick={() => setShowQRCode(h.rsvp_token)}
+                            style={{
+                              display: "block",
+                              width: "100%",
+                              padding: "8px 12px",
+                              textAlign: "left",
+                              background: "transparent",
+                              border: "none",
+                              color: "#4a3728",
+                              fontFamily: "'DM Sans', sans-serif",
+                              fontSize: "13px",
+                              cursor: "pointer",
+                              borderBottom: "1px solid #f0e6da"
+                            }}
+                          >
+                            Show QR Code
+                          </button>
+                          <button
+                            onClick={() => deleteGuestCategory(h.id)}
+                            style={{
+                              display: "block",
+                              width: "100%",
+                              padding: "8px 12px",
+                              textAlign: "left",
+                              background: "transparent",
+                              border: "none",
+                              color: "#c0705b",
+                              fontFamily: "'DM Sans', sans-serif",
+                              fontSize: "13px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Delete Household
+                          </button>
+
+                        </div>
+                      )}
                     </div>
-                  ))}
-                  <button
-                    onClick={() => addIndividualGuest(h.id)}
+                  </div>
+
+
+                  {/* Tracking Row */}
+                  <div
                     style={{
-                      ...addBtnStyle,
-                      marginTop: "4px",
-                      padding: "6px",
-                      fontSize: "12px",
-                      border: "1px dashed rgba(140,110,85,0.15)",
+                      display: "flex",
+                      gap: "24px",
+                      marginBottom: "16px",
+                      paddingBottom: "12px",
+                      borderBottom: "1px solid rgba(140,110,85,0.1)",
                     }}
                   >
-                    + Add Guest
-                  </button>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#7a6a5a", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+                      <input
+                        type="checkbox"
+                        checked={!!h.invitation_sent}
+                        onChange={(e) => updateHouseholdDetails(h.id, { invitation_sent: e.target.checked })}
+                        style={{ cursor: "pointer", accentColor: "#4a3728" }}
+                      />
+                      Invitation Sent
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#7a6a5a", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+                      <input
+                        type="checkbox"
+                        checked={!!h.thank_you_sent}
+                        onChange={(e) => updateHouseholdDetails(h.id, { thank_you_sent: e.target.checked })}
+                        style={{ cursor: "pointer", accentColor: "#4a3728" }}
+                      />
+                      Thank You Sent
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#7a6a5a", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+                      <input
+                        type="checkbox"
+                        checked={!!h.is_family}
+                        onChange={(e) => updateHouseholdDetails(h.id, { is_family: e.target.checked })}
+                        style={{ cursor: "pointer", accentColor: "#4a3728" }}
+                      />
+                      Group is a Family
+                    </label>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    {h.guests.map((g) => (
+                      <div
+                        key={g.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          background: "#faf5ef",
+                          padding: "8px 12px",
+                          borderRadius: "8px",
+                        }}
+                      >
+                        <input
+                          type="text"
+                          value={g.name}
+                          onChange={(e) => updateIndividualGuest(h.id, g.id, { name: e.target.value }, true)}
+                          onBlur={(e) => updateIndividualGuest(h.id, g.id, { name: e.target.value }, false)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              // First, ensure the current name is saved to DB
+                              updateIndividualGuest(h.id, g.id, { name: e.target.value }, false);
+                              // Then add the new guest
+                              addIndividualGuest(h.id);
+                            }
+                          }}
+                          autoFocus={!g.name} // Autofocus if name is empty (newly added)
+                          placeholder="Guest"
+                          style={{
+                            flex: 1,
+                            border: "none",
+                            background: "transparent",
+                            fontFamily: "'Cormorant Garamond', serif",
+                            fontSize: "16px",
+                            color: "#3d2e1f",
+                            outline: "none",
+                          }}
+                        />
+                        <select
+                          value={g.rsvp_status || 'pending'}
+                          onChange={(e) => updateIndividualGuest(h.id, g.id, { rsvp_status: e.target.value })}
+                          style={{
+                            fontSize: "10px",
+                            fontFamily: "'DM Sans', sans-serif",
+                            textTransform: "uppercase",
+                            padding: "4px 8px",
+                            borderRadius: "4px",
+                            border: "1px solid transparent",
+                            background:
+                              g.rsvp_status === 'attending' ? '#e7f3e7' :
+                                g.rsvp_status === 'declined' ? '#fdeced' : '#f0e6da',
+                            color:
+                              g.rsvp_status === 'attending' ? '#2d5e2d' :
+                                g.rsvp_status === 'declined' ? '#a33b3b' : '#a0917f',
+                            cursor: "pointer",
+                            outline: "none",
+                          }}
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="attending">Attending</option>
+                          <option value="declined">Declined</option>
+                        </select>
+                        <button
+                          onClick={() => removeIndividualGuest(h.id, g.id)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "#d4c8ba",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => addIndividualGuest(h.id)}
+                      style={{
+                        ...addBtnStyle,
+                        marginTop: "4px",
+                        padding: "6px",
+                        fontSize: "12px",
+                        border: "1px dashed rgba(140,110,85,0.15)",
+                      }}
+                    >
+                      + Add Guest
+                    </button>
+                  </div>
                 </div>
+              ))}
+
+
+              <button
+                onClick={() => setShowAddGuest(true)}
+                style={addBtnStyle}
+              >
+                + Create Household
+              </button>
+
+              <div
+                style={{
+                  background: "rgba(74,55,40,0.04)",
+                  borderRadius: "12px",
+                  padding: "14px 16px",
+                  marginTop: "16px",
+                  fontSize: "13px",
+                  color: "#a0917f",
+                  lineHeight: "1.6",
+                  fontFamily: "'DM Sans', sans-serif",
+                }}
+              >
               </div>
-            ))}
-
-
-            <button
-              onClick={() => setShowAddGuest(true)}
-              style={addBtnStyle}
-            >
-              + Create Household
-            </button>
-
-            <div
-              style={{
-                background: "rgba(74,55,40,0.04)",
-                borderRadius: "12px",
-                padding: "14px 16px",
-                marginTop: "16px",
-                fontSize: "13px",
-                color: "#a0917f",
-                lineHeight: "1.6",
-                fontFamily: "'DM Sans', sans-serif",
-              }}
-            >
             </div>
-          </div>
+          </>
         )}
 
         {/* ═══ NOTES ═══ */}
@@ -2168,9 +2191,17 @@ export default function WeddingPlanner() {
           onChange={(e) => setNewGuestName(e.target.value)}
           placeholder='e.g. "Neighbors" or "College Friends"'
           style={inputStyle}
-          autoFocus
           onKeyDown={(e) => e.key === "Enter" && addGuestCategory()}
         />
+        <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "#6b5443", cursor: "pointer", marginBottom: "20px", fontFamily: "'DM Sans', sans-serif" }}>
+          <input
+            type="checkbox"
+            checked={newGuestIsFamily}
+            onChange={(e) => setNewGuestIsFamily(e.target.checked)}
+            style={{ cursor: "pointer", accentColor: "#4a3728" }}
+          />
+          This is a Family (Auto-appends "Family")
+        </label>
         <button onClick={addGuestCategory} style={btnPrimary}>
           Add Group
         </button>
@@ -2373,7 +2404,7 @@ export default function WeddingPlanner() {
         </div>
       </Modal>
 
-    </div >
+    </div>
 
   );
 }

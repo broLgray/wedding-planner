@@ -175,7 +175,8 @@ export default function WeddingPlanner() {
   const [timeline, setTimeline] = useState(DEFAULT_TIMELINE);
   const [guests, setGuests] = useState(DEFAULT_GUESTS);
   const [cateringPrice, setCateringPrice] = useState(150);
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState([]);
+  const [quickNote, setQuickNote] = useState("");
   const [activeMenu, setActiveMenu] = useState(null);
 
   // Modals
@@ -207,7 +208,14 @@ export default function WeddingPlanner() {
         if (data.timeline) setTimeline(data.timeline);
         if (data.guests) setGuests(data.guests);
         if (data.cateringPrice) setCateringPrice(data.cateringPrice);
-        if (data.notes !== undefined) setNotes(data.notes);
+        if (data.notes !== undefined) {
+          if (typeof data.notes === "string") {
+            // Migration
+            setNotes([{ id: uid(), text: data.notes, date: new Date().toLocaleDateString() }]);
+          } else {
+            setNotes(data.notes);
+          }
+        }
       }
       setLoaded(true);
     })();
@@ -216,7 +224,7 @@ export default function WeddingPlanner() {
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (e.target.closest(".guest-menu-btn")) return;
+      if (e.target.closest(".guest-menu-btn") || e.target.closest(".note-menu-btn")) return;
       setActiveMenu(null);
     };
     document.addEventListener("click", handleClickOutside);
@@ -427,8 +435,29 @@ export default function WeddingPlanner() {
     setTimeline(DEFAULT_TIMELINE);
     setGuests(DEFAULT_GUESTS);
     setCateringPrice(150);
-    setNotes("");
+    setNotes([]);
+    setQuickNote("");
     setShowSettings(false);
+  };
+
+  const addNote = (text) => {
+    if (!text?.trim()) return;
+    const newNote = {
+      id: uid(),
+      text: text.trim(),
+      date: new Date().toLocaleDateString(),
+    };
+    setNotes((prev) => [newNote, ...prev]);
+  };
+
+  const updateNote = (id, newText) => {
+    setNotes((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, text: newText } : n))
+    );
+  };
+
+  const deleteNote = (id) => {
+    setNotes((prev) => prev.filter((n) => n.id !== id));
   };
 
   const tabs = [
@@ -436,6 +465,7 @@ export default function WeddingPlanner() {
     { id: "timeline", label: "Tasks", icon: "◇" },
     { id: "budget", label: "Budget", icon: "◆" },
     { id: "guests", label: "Guests", icon: "◉" },
+    { id: "notes", label: "Notes", icon: "✎" },
   ];
 
   // ─── Shared Styles ────────────────────────────────────────────
@@ -910,21 +940,38 @@ export default function WeddingPlanner() {
               )}
             </div>
 
-            {/* Notes */}
+            {/* Quick Notes */}
             <div style={card}>
-              <p style={sectionLabel}>Quick Notes</p>
+              <p style={sectionLabel}>Quick Note</p>
               <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Vendor contacts, color palette, song ideas, vow drafts..."
+                value={quickNote}
+                onChange={(e) => setQuickNote(e.target.value)}
+                placeholder="Vendor contacts, ceremony ideas, song drafts..."
                 style={{
                   ...inputStyle,
-                  minHeight: "100px",
-                  resize: "vertical",
-                  marginBottom: 0,
+                  minHeight: "80px",
+                  resize: "none",
+                  marginBottom: "12px",
                   lineHeight: "1.6",
                 }}
               />
+              <button
+                onClick={() => {
+                  if (quickNote.trim()) {
+                    addNote(quickNote);
+                    setQuickNote("");
+                  }
+                }}
+                disabled={!quickNote.trim()}
+                style={{
+                  ...btnPrimary,
+                  background: quickNote.trim() ? "#4a3728" : "#efe8dc",
+                  color: quickNote.trim() ? "#faf5ef" : "#a0917f",
+                  transition: "all 0.3s",
+                }}
+              >
+                Save to Notes Tab
+              </button>
             </div>
           </div>
         )}
@@ -1532,6 +1579,133 @@ export default function WeddingPlanner() {
               💡 <strong>Tip:</strong> Plan for about 75-80% of invited guests
               to actually attend. Budget catering for confirmed RSVPs + 5%.
             </div>
+          </div>
+        )}
+
+        {/* ═══ NOTES ═══ */}
+        {activeTab === "notes" && (
+          <div style={{ animation: "fadeIn 0.3s ease" }}>
+            <div style={{ ...card, padding: "12px" }}>
+              <button
+                onClick={() => addNote("New note...")}
+                style={{
+                  ...addBtnStyle,
+                  marginTop: 0,
+                  background: "#fff",
+                  borderColor: "rgba(140,110,85,0.15)",
+                }}
+              >
+                + Create new note
+              </button>
+            </div>
+
+            {notes.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "40px 20px",
+                  color: "#a0917f",
+                }}
+              >
+                <div style={{ fontSize: "32px", marginBottom: "12px" }}>📝</div>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>
+                  Your notes will appear here.
+                </p>
+              </div>
+            ) : (
+              notes.map((note) => (
+                <div key={note.id} style={{ ...card, position: "relative" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        fontFamily: "'DM Sans', sans-serif",
+                        color: "#b5a898",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      {note.date}
+                    </span>
+                    <div style={{ position: "relative" }}>
+                      <button
+                        className="note-menu-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenu(activeMenu === note.id ? null : note.id);
+                        }}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#d4c8ba",
+                          cursor: "pointer",
+                          fontSize: "18px",
+                          lineHeight: 1,
+                        }}
+                      >
+                        •••
+                      </button>
+                      {activeMenu === note.id && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "100%",
+                            right: 0,
+                            background: "#fff",
+                            boxShadow: "0 2px 10px rgba(60,45,30,0.1)",
+                            borderRadius: "8px",
+                            padding: "4px",
+                            zIndex: 10,
+                            minWidth: "120px",
+                          }}
+                        >
+                          <button
+                            onClick={() => deleteNote(note.id)}
+                            style={{
+                              display: "block",
+                              width: "100%",
+                              padding: "8px 12px",
+                              textAlign: "left",
+                              background: "transparent",
+                              border: "none",
+                              color: "#c0705b",
+                              fontFamily: "'DM Sans', sans-serif",
+                              fontSize: "13px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Delete Note
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <textarea
+                    value={note.text}
+                    onChange={(e) => updateNote(note.id, e.target.value)}
+                    placeholder="Write something..."
+                    style={{
+                      width: "100%",
+                      minHeight: "60px",
+                      border: "none",
+                      background: "transparent",
+                      fontFamily: "'Cormorant Garamond', serif",
+                      fontSize: "17px",
+                      lineHeight: "1.5",
+                      color: "#3d2e1f",
+                      outline: "none",
+                      resize: "vertical",
+                    }}
+                  />
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>

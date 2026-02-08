@@ -255,11 +255,11 @@ export default function WeddingPlanner() {
 
   const daysUntil = weddingDate
     ? Math.max(
-        0,
-        Math.ceil(
-          (new Date(weddingDate + "T00:00:00") - new Date()) / 86400000
-        )
+      0,
+      Math.ceil(
+        (new Date(weddingDate + "T00:00:00") - new Date()) / 86400000
       )
+    )
     : null;
 
   // Handlers
@@ -268,11 +268,11 @@ export default function WeddingPlanner() {
       prev.map((p) =>
         p.id === phaseId
           ? {
-              ...p,
-              tasks: p.tasks.map((t) =>
-                t.id === taskId ? { ...t, done: !t.done } : t
-              ),
-            }
+            ...p,
+            tasks: p.tasks.map((t) =>
+              t.id === taskId ? { ...t, done: !t.done } : t
+            ),
+          }
           : p
       )
     );
@@ -294,12 +294,12 @@ export default function WeddingPlanner() {
       prev.map((p) =>
         p.id === selectedPhase
           ? {
-              ...p,
-              tasks: [
-                ...p.tasks,
-                { id: uid(), text: newTaskText.trim(), done: false },
-              ],
-            }
+            ...p,
+            tasks: [
+              ...p.tasks,
+              { id: uid(), text: newTaskText.trim(), done: false },
+            ],
+          }
           : p
       )
     );
@@ -1139,16 +1139,46 @@ export default function WeddingPlanner() {
                       }}
                     >
                       {allocated > 0 && (
-                        <span
+                        <div
                           style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
                             fontFamily: "'DM Sans', sans-serif",
                             fontSize: "10px",
                             color: "#b5a898",
                             letterSpacing: "0.5px",
                           }}
                         >
-                          alloc: ${allocated.toLocaleString()}
-                        </span>
+                          <span>alloc: $</span>
+                          <input
+                            type="number"
+                            value={allocated}
+                            onChange={(e) => {
+                              const newAmount = Number(e.target.value);
+                              const newPercent = (newAmount / totalBudget) * 100;
+                              setBudgetCategories((prev) =>
+                                prev.map((c) =>
+                                  c.id === cat.id
+                                    ? { ...c, percent: newPercent }
+                                    : c
+                                )
+                              );
+                            }}
+                            style={{
+                              width: "50px",
+                              border: "none",
+                              borderBottom: "1px solid rgba(140,110,85,0.2)",
+                              background: "transparent",
+                              fontFamily: "inherit",
+                              fontSize: "inherit",
+                              color: "inherit",
+                              outline: "none",
+                              padding: "0",
+                              textAlign: "left",
+                            }}
+                          />
+                        </div>
                       )}
                       {!cat.isDefault && (
                         <button

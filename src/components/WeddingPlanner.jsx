@@ -215,6 +215,7 @@ export default function WeddingPlanner() {
   const [saveError, setSaveError] = useState(false);
   const saveTimeout = useRef(null);
   const lastKnownData = useRef(null);
+  const [syncStatus, setSyncStatus] = useState("idle"); // idle, syncing, success, error
 
   const hydrateStates = useCallback((data) => {
     if (!data) return;
@@ -602,9 +603,13 @@ export default function WeddingPlanner() {
 
   const syncProfile = useCallback(async () => {
     if (!partnerNames) return;
+    setSyncStatus("syncing");
     const success = await syncWeddingProfile(partnerNames, weddingDate);
-    if (!success) {
-      console.warn("Public profile sync failed. This is expected if the 'wedding_profiles' table hasn't been created in Supabase yet.");
+    if (success) {
+      setSyncStatus("success");
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    } else {
+      setSyncStatus("error");
     }
   }, [partnerNames, weddingDate]);
 
@@ -2173,14 +2178,25 @@ export default function WeddingPlanner() {
         <div style={{ marginTop: "20px" }}>
           <button
             onClick={syncProfile}
+            disabled={syncStatus === "syncing"}
             style={{
               ...btnPrimary,
-              background: "#7da07d",
-              marginBottom: "10px"
+              background: syncStatus === "success" ? "#7da07d" : syncStatus === "error" ? "#c0705b" : "#4a3728",
+              marginBottom: "10px",
+              opacity: syncStatus === "syncing" ? 0.7 : 1
             }}
           >
-            🔄 Sync Public Invitation Data
+            {syncStatus === "syncing" ? "⏳ Syncing..." :
+              syncStatus === "success" ? "✅ Profile Synced!" :
+                syncStatus === "error" ? "❌ Sync Failed" : "🔄 Sync Public Invitation Data"}
           </button>
+
+          {syncStatus === "error" && (
+            <p style={{ fontSize: "11px", color: "#c0705b", margin: "0 0 10px", textAlign: "center", lineHeight: "1.4" }}>
+              Sync failed. Please ensure you have run the <strong>003_create_wedding_profile.sql</strong> migration in your Supabase SQL Editor.
+            </p>
+          )}
+
           <p style={{ fontSize: "11px", color: "#a0917f", fontStyle: "italic", textAlign: "center" }}>
             Updates the names and date shown on your digital invitations.
           </p>

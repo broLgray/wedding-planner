@@ -92,12 +92,12 @@ const DEFAULT_TIMELINE = [
 ];
 
 const DEFAULT_GUESTS = [
-  { id: "g1", name: "Family (Side A)", count: 0 },
-  { id: "g2", name: "Family (Side B)", count: 0 },
-  { id: "g3", name: "Friends", count: 0 },
-  { id: "g4", name: "Work / Community", count: 0 },
-  { id: "g5", name: "Church / Ministry", count: 0 },
-  { id: "g6", name: "Plus-Ones & Kids", count: 0 },
+  {
+    id: "h1",
+    name: "Initial Family Group",
+    category: "Family",
+    guests: [],
+  },
 ];
 
 const uid = () =>
@@ -206,7 +206,23 @@ export default function WeddingPlanner() {
         if (data.totalBudget) setTotalBudget(data.totalBudget);
         if (data.budgetCategories) setBudgetCategories(data.budgetCategories);
         if (data.timeline) setTimeline(data.timeline);
-        if (data.guests) setGuests(data.guests);
+        if (data.guests) {
+          // Migration: convert old {name, count} objects to households
+          const migrated = data.guests.map((g) => {
+            if (g.guests) return g; // Already migrated
+            return {
+              id: g.id || uid(),
+              name: `${g.name} Group`,
+              category: g.name,
+              guests: Array.from({ length: g.count || 0 }).map(() => ({
+                id: uid(),
+                name: "Guest",
+                rsvp: "pending",
+              })),
+            };
+          });
+          setGuests(migrated);
+        }
         if (data.cateringPrice) setCateringPrice(data.cateringPrice);
         if (data.notes !== undefined) {
           if (typeof data.notes === "string") {
@@ -271,7 +287,8 @@ export default function WeddingPlanner() {
     (a, p) => a + p.tasks.filter((t) => t.done).length,
     0
   );
-  const totalGuests = guests.reduce((a, g) => a + g.count, 0);
+  const totalGuests = guests.reduce((a, h) => a + (h.guests?.length || 0), 0);
+  const totalInvitations = guests.length;
   const progress =
     totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
@@ -393,37 +410,66 @@ export default function WeddingPlanner() {
     if (!newGuestName.trim()) return;
     setGuests((prev) => [
       ...prev,
-      { id: uid(), name: newGuestName.trim(), count: 0 },
+      {
+        id: uid(),
+        name: newGuestName.trim(),
+        category: "Other",
+        guests: [{ id: uid(), name: "First Guest", rsvp: "pending" }],
+      },
     ]);
     setNewGuestName("");
     setShowAddGuest(false);
   };
 
-  const deleteGuestCategory = (gId) => {
-    setGuests((prev) => prev.filter((g) => g.id !== gId));
-  };
-
-  const updateGuestName = (gId, newName) => {
+  const addIndividualGuest = (householdId) => {
     setGuests((prev) =>
-      prev.map((g) => (g.id === gId ? { ...g, name: newName } : g))
-    );
-  };
-
-  const updateGuestCount = (gId, delta) => {
-    setGuests((prev) =>
-      prev.map((g) =>
-        g.id === gId ? { ...g, count: Math.max(0, g.count + delta) } : g
+      prev.map((h) =>
+        h.id === householdId
+          ? {
+            ...h,
+            guests: [
+              ...(h.guests || []),
+              { id: uid(), name: "", rsvp: "pending" },
+            ],
+          }
+          : h
       )
     );
   };
 
-  const setGuestCountValue = (gId, val) => {
-    const num = parseInt(val, 10);
+  const updateIndividualGuest = (householdId, guestId, updates) => {
     setGuests((prev) =>
-      prev.map((g) =>
-        g.id === gId ? { ...g, count: isNaN(num) ? 0 : Math.max(0, num) } : g
+      prev.map((h) =>
+        h.id === householdId
+          ? {
+            ...h,
+            guests: h.guests.map((g) =>
+              g.id === guestId ? { ...g, ...updates } : g
+            ),
+          }
+          : h
       )
     );
+  };
+
+  const removeIndividualGuest = (householdId, guestId) => {
+    setGuests((prev) =>
+      prev.map((h) =>
+        h.id === householdId
+          ? { ...h, guests: h.guests.filter((g) => g.id !== guestId) }
+          : h
+      )
+    );
+  };
+
+  const updateHouseholdName = (householdId, newName) => {
+    setGuests((prev) =>
+      prev.map((h) => (h.id === householdId ? { ...h, name: newName } : h))
+    );
+  };
+
+  const deleteGuestCategory = (hId) => {
+    setGuests((prev) => prev.filter((h) => h.id !== hId));
   };
 
   const resetAll = async () => {
@@ -710,8 +756,8 @@ export default function WeddingPlanner() {
           {[
             { label: "Progress", value: `${progress}%` },
             { label: "Spent", value: `$${(totalSpent / 1000).toFixed(1)}k` },
+            { label: "Invitations", value: totalInvitations || "0" },
             { label: "Guests", value: totalGuests || "0" },
-            { label: "Done", value: `${completedTasks}/${totalTasks}` },
           ].map((s) => (
             <div
               key={s.label}
@@ -1336,166 +1382,115 @@ export default function WeddingPlanner() {
         {/* ═══ GUESTS ═══ */}
         {activeTab === "guests" && (
           <div style={{ animation: "fadeIn 0.3s ease" }}>
-            <div style={{ ...card, textAlign: "center" }}>
-              <div style={{ fontSize: "48px", fontWeight: 300 }}>
-                {totalGuests}
+            <div
+              style={{
+                ...card,
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                textAlign: "center",
+                gap: "20px",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: "36px", fontWeight: 300 }}>
+                  {totalGuests}
+                </div>
+                <p style={sectionLabel}>Total Guests</p>
               </div>
-              <p style={sectionLabel}>Total Guests</p>
-              {totalGuests > 0 && (
+              <div>
+                <div style={{ fontSize: "36px", fontWeight: 300 }}>
+                  {totalInvitations}
+                </div>
+                <p style={sectionLabel}>Invitations</p>
+              </div>
+
+              <div style={{ gridColumn: "span 2", borderTop: "1px solid #efe8dc", paddingTop: "12px" }}>
+                {totalGuests > 0 && (
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      color: "#a0917f",
+                      fontFamily: "'DM Sans', sans-serif",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <span>Est. catering (~${cateringPrice}/pp):</span>
+                    <span style={{ fontWeight: 600, color: "#4a3728" }}>
+                      ${(totalGuests * cateringPrice).toLocaleString()}
+                    </span>
+                  </div>
+                )}
                 <div
                   style={{
-                    fontSize: "13px",
-                    color: "#a0917f",
-                    fontFamily: "'DM Sans', sans-serif",
-                    marginTop: "8px",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     gap: "6px",
+                    marginTop: "8px",
+                    fontSize: "12px",
+                    color: "#b5a898",
                   }}
                 >
-                  <span>Est. catering (~${cateringPrice}/pp):</span>
-                  <span style={{ fontWeight: 600, color: "#4a3728" }}>
-                    ${(totalGuests * cateringPrice).toLocaleString()}
-                  </span>
+                  <span>Catering price: $</span>
+                  <input
+                    type="number"
+                    value={cateringPrice}
+                    onChange={(e) => setCateringPrice(Number(e.target.value))}
+                    style={{
+                      width: "50px",
+                      padding: "2px",
+                      border: "none",
+                      borderBottom: "1px solid #d4c8ba",
+                      textAlign: "center",
+                      fontFamily: "inherit",
+                      fontSize: "inherit",
+                      background: "transparent",
+                      color: "#4a3728",
+                      outline: "none",
+                    }}
+                  />
                 </div>
-              )}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "6px",
-                  marginTop: "8px",
-                  fontSize: "12px",
-                  color: "#b5a898",
-                }}
-              >
-                <span>Price per guest: $</span>
-                <input
-                  type="number"
-                  value={cateringPrice}
-                  onChange={(e) => setCateringPrice(Number(e.target.value))}
-                  style={{
-                    width: "50px",
-                    padding: "2px",
-                    border: "none",
-                    borderBottom: "1px solid #d4c8ba",
-                    textAlign: "center",
-                    fontFamily: "inherit",
-                    fontSize: "inherit",
-                    background: "transparent",
-                    color: "#4a3728",
-                    outline: "none",
-                  }}
-                />
               </div>
             </div>
 
-            {guests.map((g) => (
-              <div
-                key={g.id}
-                style={{
-                  ...card,
-                  padding: "14px 18px",
-                  marginBottom: "10px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
+            {guests.map((h) => (
+              <div key={h.id} style={{ ...card, padding: "18px" }}>
                 <div
                   style={{
                     display: "flex",
+                    justifyContent: "space-between",
                     alignItems: "center",
-                    gap: "8px",
+                    marginBottom: "16px",
                   }}
                 >
                   <input
                     type="text"
-                    value={g.name}
-                    onChange={(e) => updateGuestName(g.id, e.target.value)}
+                    value={h.name}
+                    onChange={(e) => updateHouseholdName(h.id, e.target.value)}
+                    placeholder="Household Name (e.g. The Smiths)"
                     style={{
-                      fontSize: "15px",
+                      fontSize: "18px",
+                      fontWeight: 500,
                       border: "none",
                       background: "transparent",
                       color: "#3d2e1f",
                       fontFamily: "'Cormorant Garamond', serif",
-                      width: "140px",
+                      width: "70%",
                       outline: "none",
                       borderBottom: "1px dashed transparent",
                     }}
-                    onFocus={(e) =>
-                      (e.target.style.borderBottom = "1px dashed #d4c8ba")
-                    }
+                    onFocus={(e) => (e.target.style.borderBottom = "1px dashed #d4c8ba")}
                     onBlur={(e) => (e.target.style.borderBottom = "transparent")}
                   />
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                  }}
-                >
-                  <button
-                    onClick={() => updateGuestCount(g.id, -1)}
-                    style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "50%",
-                      border: "1px solid rgba(140,110,85,0.15)",
-                      background: "#fdf8f2",
-                      cursor: "pointer",
-                      fontSize: "16px",
-                      color: "#4a3728",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    -
-                  </button>
-                  <input
-                    type="number"
-                    value={g.count}
-                    onChange={(e) => setGuestCountValue(g.id, e.target.value)}
-                    style={{
-                      fontSize: "20px",
-                      fontWeight: 600,
-                      width: "50px",
-                      textAlign: "center",
-                      border: "none",
-                      background: "transparent",
-                      fontFamily: "'Cormorant Garamond', serif",
-                      color: "#3d2e1f",
-                      outline: "none",
-                    }}
-                  />
-                  <button
-                    onClick={() => updateGuestCount(g.id, 1)}
-                    style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "50%",
-                      border: "1px solid rgba(140,110,85,0.15)",
-                      background: "#fdf8f2",
-                      cursor: "pointer",
-                      fontSize: "16px",
-                      color: "#4a3728",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    +
-                  </button>
                   <div style={{ position: "relative" }}>
                     <button
                       className="guest-menu-btn"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setActiveMenu((prev) => (prev === g.id ? null : g.id));
+                        setActiveMenu(activeMenu === h.id ? null : h.id);
                       }}
                       style={{
                         background: "none",
@@ -1503,13 +1498,12 @@ export default function WeddingPlanner() {
                         color: "#d4c8ba",
                         cursor: "pointer",
                         fontSize: "18px",
-                        padding: "0 4px",
-                        lineHeight: 1,
+                        padding: "4px",
                       }}
                     >
                       •••
                     </button>
-                    {activeMenu === g.id && (
+                    {activeMenu === h.id && (
                       <div
                         style={{
                           position: "absolute",
@@ -1520,12 +1514,11 @@ export default function WeddingPlanner() {
                           borderRadius: "8px",
                           padding: "4px",
                           zIndex: 10,
-                          minWidth: "120px",
-                          animation: "fadeIn 0.2s ease",
+                          minWidth: "140px",
                         }}
                       >
                         <button
-                          onClick={() => deleteGuestCategory(g.id)}
+                          onClick={() => deleteGuestCategory(h.id)}
                           style={{
                             display: "block",
                             width: "100%",
@@ -1537,28 +1530,100 @@ export default function WeddingPlanner() {
                             fontFamily: "'DM Sans', sans-serif",
                             fontSize: "13px",
                             cursor: "pointer",
-                            borderRadius: "6px",
                           }}
-                          onMouseEnter={(e) =>
-                            (e.target.style.background = "#fff5f5")
-                          }
-                          onMouseLeave={(e) =>
-                            (e.target.style.background = "transparent")
-                          }
                         >
-                          Delete
+                          Delete Household
                         </button>
                       </div>
                     )}
                   </div>
                 </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {h.guests.map((g) => (
+                    <div
+                      key={g.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        paddingBottom: "8px",
+                        borderBottom: "1px solid rgba(140,110,85,0.05)",
+                      }}
+                    >
+                      <input
+                        type="text"
+                        value={g.name}
+                        onChange={(e) =>
+                          updateIndividualGuest(h.id, g.id, { name: e.target.value })
+                        }
+                        placeholder="Guest name"
+                        style={{
+                          flex: 1,
+                          fontSize: "15px",
+                          border: "none",
+                          background: "transparent",
+                          fontFamily: "inherit",
+                          color: "#3d2e1f",
+                          outline: "none",
+                        }}
+                      />
+                      <select
+                        value={g.rsvp || "pending"}
+                        onChange={(e) =>
+                          updateIndividualGuest(h.id, g.id, { rsvp: e.target.value })
+                        }
+                        style={{
+                          fontSize: "12px",
+                          padding: "4px 8px",
+                          borderRadius: "6px",
+                          border: "1px solid rgba(140,110,85,0.15)",
+                          background: g.rsvp === "attending" ? "#f0f7f0" : g.rsvp === "declined" ? "#fdf2f2" : "#fdf8f2",
+                          color: g.rsvp === "attending" ? "#2d5a27" : g.rsvp === "declined" ? "#a33a3a" : "#7a6a5a",
+                          outline: "none",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="attending">Attending</option>
+                        <option value="declined">Declined</option>
+                      </select>
+                      <button
+                        onClick={() => removeIndividualGuest(h.id, g.id)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#d4c8ba",
+                          fontSize: "16px",
+                          cursor: "pointer",
+                          padding: "0 4px",
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => addIndividualGuest(h.id)}
+                    style={{
+                      ...addBtnStyle,
+                      marginTop: "4px",
+                      padding: "6px",
+                      fontSize: "12px",
+                      border: "1px dashed rgba(140,110,85,0.15)",
+                    }}
+                  >
+                    + Add Guest
+                  </button>
+                </div>
               </div>
             ))}
+
             <button
               onClick={() => setShowAddGuest(true)}
               style={addBtnStyle}
             >
-              + Add guest category
+              + Create Household
             </button>
 
             <div
@@ -1573,8 +1638,6 @@ export default function WeddingPlanner() {
                 fontFamily: "'DM Sans', sans-serif",
               }}
             >
-              💡 <strong>Tip:</strong> Plan for about 75-80% of invited guests
-              to actually attend. Budget catering for confirmed RSVPs + 5%.
             </div>
           </div>
         )}

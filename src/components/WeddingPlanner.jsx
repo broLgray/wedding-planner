@@ -215,7 +215,10 @@ export default function WeddingPlanner() {
 
   // Close menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => setActiveMenu(null);
+    const handleClickOutside = (e) => {
+      if (e.target.closest(".guest-menu-btn")) return;
+      setActiveMenu(null);
+    };
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
@@ -1445,9 +1448,10 @@ export default function WeddingPlanner() {
                   </button>
                   <div style={{ position: "relative" }}>
                     <button
+                      className="guest-menu-btn"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setActiveMenu(activeMenu === g.id ? null : g.id);
+                        setActiveMenu((prev) => (prev === g.id ? null : g.id));
                       }}
                       style={{
                         background: "none",

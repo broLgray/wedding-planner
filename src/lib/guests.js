@@ -28,14 +28,14 @@ export async function fetchHouseholds() {
 /**
  * Create a new household with initial guests.
  */
-export async function createHousehold(name, category, initialGuests = []) {
+export async function createHousehold(name, category, initialGuests = [], groupType = 'individual') {
     const supabase = getSupabase();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
     const { data: household, error: hError } = await supabase
         .from("households")
-        .insert({ user_id: user.id, name, category })
+        .insert({ user_id: user.id, name, category, group_type: groupType })
         .select()
         .single();
 
@@ -252,7 +252,8 @@ export async function findHouseholdsByName(searchTerm) {
             id,
             name,
             rsvp_token,
-            user_id
+            user_id,
+            group_type
         `)
         .or(orConditions)
         .limit(50);
@@ -269,7 +270,8 @@ export async function findHouseholdsByName(searchTerm) {
                 id,
                 name,
                 rsvp_token,
-                user_id
+                user_id,
+                group_type
             )
         `)
         .or(guestOrConditions)
@@ -314,7 +316,8 @@ export async function findHouseholdsByName(searchTerm) {
             results.push({
                 ...h,
                 guests: allGuests || [],
-                couple: profile?.partner_names || "A Wedding"
+                couple: profile?.partner_names || "A Wedding",
+                is_family: h.group_type === 'family' // Map group_type back to is_family for UI compatibility or update UI
             });
         }
     }

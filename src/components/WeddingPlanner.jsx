@@ -772,6 +772,23 @@ export default function WeddingPlanner() {
           font-weight: 500;
           text-align: center;
         }
+        .fab-container {
+          position: fixed;
+          bottom: 30px;
+          right: 24px;
+          z-index: 999;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 12px;
+        }
+        @media (min-width: 900px) {
+          .fab-container {
+            right: auto;
+            left: calc(50% + 280px + 24px);
+            bottom: 40px;
+          }
+        }
         @media (min-width: 768px) {
           .status-toast {
             bottom: 24px;
@@ -1982,16 +1999,7 @@ export default function WeddingPlanner() {
                 }}
               />
             )}
-            <div style={{
-              position: "fixed",
-              bottom: "100px",
-              right: "24px",
-              zIndex: 999,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
-              gap: "12px"
-            }}>
+            <div className="fab-container">
               {showFabMenu && (
                 <div style={{
                   display: "flex",

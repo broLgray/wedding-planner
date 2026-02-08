@@ -33,6 +33,7 @@ export default function RSVPLookup() {
         <div style={styles.container}>
             <div style={styles.card}>
                 <h1 style={styles.title}>Find Your Invitation</h1>
+                <div style={styles.subtitle}>Maryah & Gabe</div>
                 <p style={styles.text}>
                     If you're responding for you and a guest (or your family),
                     you'll be able to RSVP for your entire group.
@@ -66,7 +67,6 @@ export default function RSVPLookup() {
                                 >
                                     <div style={styles.resultContent}>
                                         <span style={styles.householdName}>{h.name}</span>
-                                        <span style={styles.weddingDetail}>Celebrating with {h.couple}</span>
                                         <span style={styles.guestPreview}>
                                             Guests: {h.guests.map(g => g.name).join(", ")}
                                         </span>
@@ -113,7 +113,14 @@ const styles = {
         fontSize: "36px",
         fontWeight: 500,
         color: "#3d2e1f",
+        marginBottom: "8px",
+    },
+    subtitle: {
+        fontSize: "24px",
+        fontWeight: 400,
+        color: "#8c6e55",
         marginBottom: "20px",
+        fontFamily: "'Cormorant Garamond', serif",
     },
     text: {
         fontSize: "18px",

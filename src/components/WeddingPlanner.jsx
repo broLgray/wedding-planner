@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "./AuthProvider";
 import { savePlannerData, loadPlannerData, deletePlannerData } from "@/lib/planner-data";
+import { getSupabase } from "@/lib/supabase";
 
 // ─── Default Data ──────────────────────────────────────────────
 const DEFAULT_BUDGET_CATEGORIES = [
@@ -196,46 +197,82 @@ export default function WeddingPlanner() {
   const [saveError, setSaveError] = useState(false);
   const saveTimeout = useRef(null);
 
-  // Load on mount
-  useEffect(() => {
-    (async () => {
-      const data = await loadPlannerData();
-      if (data) {
-        if (data.weddingDate) setWeddingDate(data.weddingDate);
-        if (data.partnerNames) setPartnerNames(data.partnerNames);
-        if (data.totalBudget) setTotalBudget(data.totalBudget);
-        if (data.budgetCategories) setBudgetCategories(data.budgetCategories);
-        if (data.timeline) setTimeline(data.timeline);
-        if (data.guests) {
-          // Migration: convert old {name, count} objects to households
-          const migrated = data.guests.map((g) => {
-            if (g.guests) return g; // Already migrated
-            return {
-              id: g.id || uid(),
-              name: `${g.name} Group`,
-              category: g.name,
-              guests: Array.from({ length: g.count || 0 }).map(() => ({
-                id: uid(),
-                name: "Guest",
-                rsvp: "pending",
-              })),
-            };
-          });
-          setGuests(migrated);
-        }
-        if (data.cateringPrice) setCateringPrice(data.cateringPrice);
-        if (data.notes !== undefined) {
-          if (typeof data.notes === "string") {
-            // Migration
-            setNotes([{ id: uid(), text: data.notes, date: new Date().toLocaleDateString() }]);
-          } else {
-            setNotes(data.notes);
-          }
-        }
+  const hydrateStates = useCallback((data) => {
+    if (!data) return;
+    if (data.weddingDate) setWeddingDate(data.weddingDate);
+    if (data.partnerNames) setPartnerNames(data.partnerNames);
+    if (data.totalBudget) setTotalBudget(data.totalBudget);
+    if (data.budgetCategories) setBudgetCategories(data.budgetCategories);
+    if (data.timeline) setTimeline(data.timeline);
+    if (data.guests) {
+      // Migration/Hydration
+      const migrated = data.guests.map((g) => {
+        if (g.guests) return g; // Already migrated
+        return {
+          id: g.id || uid(),
+          name: `${g.name} Group`,
+          category: g.name,
+          guests: Array.from({ length: g.count || 0 }).map(() => ({
+            id: uid(),
+            name: "Guest",
+            rsvp: "pending",
+          })),
+        };
+      });
+      setGuests(migrated);
+    }
+    if (data.cateringPrice) setCateringPrice(data.cateringPrice);
+    if (data.notes !== undefined) {
+      if (typeof data.notes === "string") {
+        setNotes([{ id: uid(), text: data.notes, date: new Date().toLocaleDateString() }]);
+      } else {
+        setNotes(data.notes);
       }
-      setLoaded(true);
-    })();
+    }
   }, []);
+
+  // Load on mount and setup Realtime
+  useEffect(() => {
+    let channel;
+
+    (async () => {
+      // 1. Initial Load
+      const data = await loadPlannerData();
+      if (data) hydrateStates(data);
+      setLoaded(true);
+
+      // 2. Setup Realtime subscription
+      const supabase = getSupabase();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        channel = supabase
+          .channel('realtime_planner')
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'user_data',
+              filter: `user_id=eq.${user.id}`,
+            },
+            (payload) => {
+              if (payload.new && payload.new.data) {
+                // Only update if it's external (optional check, but good for stability)
+                hydrateStates(payload.new.data);
+              }
+            }
+          )
+          .subscribe();
+      }
+    })();
+
+    return () => {
+      if (channel) {
+        getSupabase().removeChannel(channel);
+      }
+    };
+  }, [hydrateStates]);
 
   // Close menu when clicking outside
   useEffect(() => {

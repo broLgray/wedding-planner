@@ -165,6 +165,7 @@ const styles = {
         transition: "all 0.2s",
         textDecoration: "none",
         width: "100%",
+        textAlign: "left",
     },
     resultContent: {
         display: "flex",

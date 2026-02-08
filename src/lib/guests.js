@@ -15,7 +15,8 @@ export async function fetchHouseholds() {
       guests (*)
     `)
         .eq("user_id", user.id)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: true })
+        .order("created_at", { foreignTable: "guests", ascending: true });
 
     if (error) {
         console.error("Error fetching households:", error);
@@ -135,6 +136,7 @@ export async function fetchByToken(token) {
       guests (*)
     `)
         .eq("rsvp_token", token)
+        .order("created_at", { foreignTable: "guests", ascending: true })
         .single();
 
     if (error) {

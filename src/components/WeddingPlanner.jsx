@@ -5,6 +5,11 @@ import { useAuth } from "./AuthProvider";
 import { savePlannerData, loadPlannerData, deletePlannerData } from "@/lib/planner-data";
 import { getSupabase } from "@/lib/supabase";
 import {
+  fetchHouseholds,
+  createHousehold,
+  updateHousehold,
+  deleteHousehold,
+  addGuest,
   updateGuest,
   removeGuest,
   migrateGuests,

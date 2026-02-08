@@ -520,9 +520,9 @@ export default function WeddingPlanner() {
     );
   };
 
-  const updateHouseholdName = (householdId, newName) => {
+  const updateHousehold = (householdId, updates) => {
     setGuests((prev) =>
-      prev.map((h) => (h.id === householdId ? { ...h, name: newName } : h))
+      prev.map((h) => (h.id === householdId ? { ...h, ...updates } : h))
     );
   };
 
@@ -1531,13 +1531,13 @@ export default function WeddingPlanner() {
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    marginBottom: "16px",
+                    marginBottom: "8px",
                   }}
                 >
                   <input
                     type="text"
                     value={h.name}
-                    onChange={(e) => updateHouseholdName(h.id, e.target.value)}
+                    onChange={(e) => updateHousehold(h.id, { name: e.target.value })}
                     placeholder="Household Name (e.g. The Smiths)"
                     style={{
                       fontSize: "18px",
@@ -1605,6 +1605,36 @@ export default function WeddingPlanner() {
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* Tracking Row */}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "24px",
+                    marginBottom: "16px",
+                    paddingBottom: "12px",
+                    borderBottom: "1px solid rgba(140,110,85,0.1)",
+                  }}
+                >
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#7a6a5a", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!h.invitationSent}
+                      onChange={(e) => updateHousehold(h.id, { invitationSent: e.target.checked })}
+                      style={{ cursor: "pointer", accentColor: "#4a3728" }}
+                    />
+                    Invitation Sent
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#7a6a5a", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!h.thankYouSent}
+                      onChange={(e) => updateHousehold(h.id, { thankYouSent: e.target.checked })}
+                      style={{ cursor: "pointer", accentColor: "#4a3728" }}
+                    />
+                    Thank You Sent
+                  </label>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>

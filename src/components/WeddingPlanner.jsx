@@ -1581,6 +1581,7 @@ export default function WeddingPlanner() {
                     gap: "8px",
                     fontSize: "14px",
                     color: "#b5a898",
+                    marginBottom: "12px"
                   }}
                 >
                   <span style={{ fontFamily: "'DM Sans', sans-serif" }}>Catering price: $</span>
@@ -1602,6 +1603,27 @@ export default function WeddingPlanner() {
                       outline: "none"
                     }}
                   />
+                </div>
+
+                <div style={{ padding: "0 20px" }}>
+                  <button
+                    onClick={() => setShowQRCode("general")}
+                    style={{
+                      ...btnPrimary,
+                      background: "transparent",
+                      border: "1px solid #d4c8ba",
+                      color: "#6b5443",
+                      fontSize: "13px",
+                      padding: "10px 20px",
+                      width: "auto",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      margin: "0 auto"
+                    }}
+                  >
+                    🔍 General RSVP Link & QR
+                  </button>
                 </div>
               </div>
             </div>
@@ -2271,7 +2293,7 @@ export default function WeddingPlanner() {
           }}>
             <img
               id="qr-image"
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/rsvp/${showQRCode}` : '')}`}
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(typeof window !== 'undefined' ? (showQRCode === 'general' ? `${window.location.origin}/rsvp` : `${window.location.origin}/rsvp/${showQRCode}`) : '')}`}
               alt="QR Code"
               style={{ display: "block", width: "200px", height: "200px" }}
               crossOrigin="anonymous"
@@ -2281,12 +2303,13 @@ export default function WeddingPlanner() {
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <button
               onClick={async () => {
-                const response = await fetch(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(window.location.origin + '/rsvp/' + showQRCode)}`);
+                const url = showQRCode === 'general' ? `${window.location.origin}/rsvp` : `${window.location.origin}/rsvp/${showQRCode}`;
+                const response = await fetch(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(url)}`);
                 const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
+                const dUrl = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = url;
-                a.download = `RSVP-QR-${showQRCode}.png`;
+                a.href = dUrl;
+                a.download = showQRCode === 'general' ? `General-RSVP-QR.png` : `RSVP-QR-${showQRCode}.png`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -2298,22 +2321,23 @@ export default function WeddingPlanner() {
 
             <button
               onClick={() => {
-                const link = `${window.location.origin}/invite/${showQRCode}`;
+                const link = showQRCode === 'general' ? `${window.location.origin}/rsvp` : `${window.location.origin}/invite/${showQRCode}`;
                 navigator.clipboard.writeText(link);
                 setCopyingLink("invite-" + showQRCode);
                 setTimeout(() => setCopyingLink(null), 2000);
               }}
               style={{ ...btnPrimary, background: "#fdf8f2", color: "#4a3728", border: "1px solid #d4c8ba", margin: 0 }}
             >
-              {copyingLink === "invite-" + showQRCode ? "✅ Link Copied!" : "💌 Copy Invitation Link"}
+              {copyingLink === "invite-" + showQRCode ? "✅ Link Copied!" : (showQRCode === 'general' ? "📋 Copy General RSVP Link" : "💌 Copy Invitation Link")}
             </button>
 
             <button
               onClick={async () => {
+                const url = showQRCode === 'general' ? `${window.location.origin}/rsvp` : `${window.location.origin}/invite/${showQRCode}`;
                 const shareData = {
                   title: 'Wedding Invitation',
-                  text: `You are cordially invited to or wedding! Please RSVP here:`,
-                  url: `${window.location.origin}/invite/${showQRCode}`
+                  text: showQRCode === 'general' ? 'Find your wedding invitation here:' : `You are cordially invited to or wedding! Please RSVP here:`,
+                  url: url
                 };
                 if (navigator.share) {
                   try {
@@ -2322,7 +2346,13 @@ export default function WeddingPlanner() {
                     console.log('Share failed', err);
                   }
                 } else {
-                  copyRSVPLink(showQRCode);
+                  if (showQRCode === 'general') {
+                    navigator.clipboard.writeText(url);
+                    setCopyingLink("general");
+                    setTimeout(() => setCopyingLink(null), 2000);
+                  } else {
+                    copyRSVPLink(showQRCode);
+                  }
                 }
               }}
               style={{ ...btnPrimary, background: "transparent", border: "1px solid #efe8dc", color: "#a0917f", margin: 0 }}

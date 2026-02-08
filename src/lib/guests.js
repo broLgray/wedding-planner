@@ -231,3 +231,32 @@ export async function fetchWeddingProfile(userId) {
     }
     return data;
 }
+
+/**
+ * Find households by guest name or group name (Public Search).
+ */
+export async function findHouseholdsByName(searchTerm) {
+    const supabase = getSupabase();
+    if (!searchTerm || searchTerm.length < 2) return [];
+
+    // Search both households (group name) and guests (individual names)
+    const { data: households, error: hError } = await supabase
+        .from("households")
+        .select(`
+            id,
+            name,
+            rsvp_token,
+            guests!inner (
+                name
+            )
+        `)
+        .or(`name.ilike.%${searchTerm}%, guests.name.ilike.%${searchTerm}%`)
+        .limit(10);
+
+    if (hError) {
+        console.error("Error searching households:", hError);
+        return [];
+    }
+
+    return households;
+}

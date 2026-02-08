@@ -99,29 +99,27 @@ export default function RSVPPage() {
                         <div key={guest.id} style={styles.guestSection}>
                             <h3 style={styles.guestName}>{guest.name}</h3>
 
-                            <div style={styles.radioGroup}>
-                                <label style={styles.radioLabel}>
-                                    <input
-                                        type="radio"
-                                        name={`rsvp-${guest.id}`}
-                                        value="attending"
-                                        checked={guest.rsvp_status === "attending"}
-                                        onChange={() => handleGuestUpdate(guest.id, "rsvp_status", "attending")}
-                                        required
-                                    />
-                                    <span>Joyfully Accepts</span>
-                                </label>
-                                <label style={styles.radioLabel}>
-                                    <input
-                                        type="radio"
-                                        name={`rsvp-${guest.id}`}
-                                        value="declined"
-                                        checked={guest.rsvp_status === "declined"}
-                                        onChange={() => handleGuestUpdate(guest.id, "rsvp_status", "declined")}
-                                        required
-                                    />
-                                    <span>Regretfully Declines</span>
-                                </label>
+                            <div style={styles.toggleGroup}>
+                                <button
+                                    type="button"
+                                    onClick={() => handleGuestUpdate(guest.id, "rsvp_status", "attending")}
+                                    style={{
+                                        ...styles.toggleBtn,
+                                        ...(guest.rsvp_status === "attending" ? styles.toggleBtnActive : {})
+                                    }}
+                                >
+                                    Joyfully Accepts
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleGuestUpdate(guest.id, "rsvp_status", "declined")}
+                                    style={{
+                                        ...styles.toggleBtn,
+                                        ...(guest.rsvp_status === "declined" ? styles.toggleBtnActiveDeclined : {})
+                                    }}
+                                >
+                                    Regretfully Declines
+                                </button>
                             </div>
 
                             {guest.rsvp_status === "attending" && (
@@ -142,8 +140,8 @@ export default function RSVPPage() {
 
                     <button
                         type="submit"
-                        disabled={submitting}
-                        style={submitting ? styles.btnDisabled : styles.btnPrimary}
+                        disabled={submitting || household.guests.some(g => !g.rsvp_status)}
+                        style={submitting || household.guests.some(g => !g.rsvp_status) ? styles.btnDisabled : styles.btnPrimary}
                     >
                         {submitting ? "Sending..." : "Submit RSVP"}
                     </button>
@@ -210,19 +208,34 @@ const styles = {
         color: "#3d2e1f",
         marginBottom: "16px",
     },
-    radioGroup: {
+    toggleGroup: {
         display: "flex",
-        flexDirection: "column",
-        gap: "12px",
-        marginBottom: "16px",
-    },
-    radioLabel: {
-        display: "flex",
-        alignItems: "center",
         gap: "10px",
-        fontSize: "18px",
-        color: "#4a3728",
+        marginBottom: "20px",
+    },
+    toggleBtn: {
+        flex: 1,
+        padding: "12px",
+        borderRadius: "8px",
+        border: "1px solid #d4c8ba",
+        background: "transparent",
+        color: "#6b5443",
+        fontSize: "16px",
+        fontFamily: "'DM Sans', sans-serif",
         cursor: "pointer",
+        transition: "all 0.2s",
+    },
+    toggleBtnActive: {
+        background: "#7da07d",
+        borderColor: "#7da07d",
+        color: "#fff",
+        fontWeight: "600",
+    },
+    toggleBtnActiveDeclined: {
+        background: "#c0705b",
+        borderColor: "#c0705b",
+        color: "#fff",
+        fontWeight: "600",
     },
     inputGroup: {
         marginTop: "16px",

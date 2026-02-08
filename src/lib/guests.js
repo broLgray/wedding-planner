@@ -240,23 +240,32 @@ export async function findHouseholdsByName(searchTerm) {
     if (!searchTerm || searchTerm.length < 2) return [];
 
     // Search both households (group name) and guests (individual names)
+    // We also join wedding_profiles so guests can see which wedding they are RSVPing for
     const { data: households, error: hError } = await supabase
         .from("households")
         .select(`
             id,
             name,
             rsvp_token,
+            user_id,
             guests!inner (
                 name
             )
         `)
-        .or(`name.ilike.%${searchTerm}%, guests.name.ilike.%${searchTerm}%`)
-        .limit(10);
+        // CRITICAL: No spaces after commas in the .or() string for PostgREST
+        .or(`name.ilike.%${searchTerm}%,guests.name.ilike.%${searchTerm}%`)
+        .limit(20);
 
     if (hError) {
         console.error("Error searching households:", hError);
         return [];
     }
 
-    return households;
+    // Now fetch the couple names for these households to help guests identify the right wedding
+    const results = await Promise.all(households.map(async (h) => {
+        const profile = await fetchWeddingProfile(h.user_id);
+        return { ...h, couple: profile?.partner_names || "A Wedding" };
+    }));
+
+    return results;
 }

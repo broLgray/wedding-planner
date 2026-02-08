@@ -13,9 +13,10 @@ export default function RSVPLookup() {
 
     useEffect(() => {
         const delaySearch = setTimeout(async () => {
-            if (searchTerm.length >= 2) {
+            const trimmed = searchTerm.trim();
+            if (trimmed.length >= 2) {
                 setLoading(true);
-                const households = await findHouseholdsByName(searchTerm);
+                const households = await findHouseholdsByName(trimmed);
                 setResults(households);
                 setLoading(false);
                 setSearched(true);
@@ -65,8 +66,9 @@ export default function RSVPLookup() {
                                 >
                                     <div style={styles.resultContent}>
                                         <span style={styles.householdName}>{h.name}</span>
+                                        <span style={styles.weddingDetail}>Celebrating with {h.couple}</span>
                                         <span style={styles.guestPreview}>
-                                            {h.guests.map(g => g.name).join(", ")}
+                                            Guests: {h.guests.map(g => g.name).join(", ")}
                                         </span>
                                     </div>
                                     <span style={styles.arrow}>→</span>
@@ -174,8 +176,14 @@ const styles = {
         fontWeight: 600,
         color: "#4a3728",
     },
-    guestPreview: {
+    weddingDetail: {
         fontSize: "14px",
+        color: "#7da07d",
+        fontWeight: "500",
+        fontFamily: "'DM Sans', sans-serif",
+    },
+    guestPreview: {
+        fontSize: "13px",
         color: "#a0917f",
         fontFamily: "'DM Sans', sans-serif",
     },

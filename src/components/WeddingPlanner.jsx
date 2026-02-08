@@ -275,6 +275,11 @@ export default function WeddingPlanner() {
 
       setLoaded(true);
 
+      // 4. Proactively sync public profile if data exists
+      if (data && data.partnerNames) {
+        syncWeddingProfile(data.partnerNames, data.weddingDate);
+      }
+
       // 3. Setup Realtime subscription for planner data
       const supabase = getSupabase();
       const { data: { user } } = await supabase.auth.getUser();
@@ -594,6 +599,14 @@ export default function WeddingPlanner() {
     setQuickNote("");
     setShowSettings(false);
   };
+
+  const syncProfile = useCallback(async () => {
+    if (!partnerNames) return;
+    const success = await syncWeddingProfile(partnerNames, weddingDate);
+    if (!success) {
+      console.warn("Public profile sync failed. This is expected if the 'wedding_profiles' table hasn't been created in Supabase yet.");
+    }
+  }, [partnerNames, weddingDate]);
 
   const addNote = (text) => {
     if (!text?.trim()) return;
@@ -2156,6 +2169,22 @@ export default function WeddingPlanner() {
           onChange={(e) => setWeddingDate(e.target.value)}
           style={inputStyle}
         />
+
+        <div style={{ marginTop: "20px" }}>
+          <button
+            onClick={syncProfile}
+            style={{
+              ...btnPrimary,
+              background: "#7da07d",
+              marginBottom: "10px"
+            }}
+          >
+            🔄 Sync Public Invitation Data
+          </button>
+          <p style={{ fontSize: "11px", color: "#a0917f", fontStyle: "italic", textAlign: "center" }}>
+            Updates the names and date shown on your digital invitations.
+          </p>
+        </div>
 
         {/* Account info */}
         <div

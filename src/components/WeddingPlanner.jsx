@@ -608,7 +608,39 @@ export default function WeddingPlanner() {
       <style>{`
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes savedPulse { 0%,100% { opacity: 0; transform: translateY(4px); } 20%,80% { opacity: 1; transform: translateY(0); } }
+        @keyframes savedPulse { 
+          0%, 100% { opacity: 0; transform: translateY(100%); } 
+          15%, 85% { opacity: 1; transform: translateY(0); } 
+        }
+        @keyframes savedPulseDesktop { 
+          0%, 100% { opacity: 0; transform: translateY(10px); } 
+          15%, 85% { opacity: 1; transform: translateY(0); } 
+        }
+        .status-toast {
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          width: 100%;
+          z-index: 999;
+          padding: 8px 16px;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 13px;
+          font-weight: 500;
+          text-align: center;
+          animation: savedPulse 2s ease forwards;
+        }
+        @media (min-width: 768px) {
+          .status-toast {
+            bottom: 24px;
+            right: 24px;
+            left: auto;
+            width: auto;
+            border-radius: 8px;
+            min-width: 120px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            animation-name: savedPulseDesktop;
+          }
+        }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
         input[type="number"] { -moz-appearance: textfield; }
@@ -619,21 +651,10 @@ export default function WeddingPlanner() {
       {/* Saved / Error Indicator */}
       {showSaved && (
         <div
+          className="status-toast"
           style={{
-            position: "fixed",
-            top: "12px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 999,
             background: "#4a3728",
             color: "#faf5ef",
-            padding: "6px 16px",
-            borderRadius: "20px",
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "12px",
-            fontWeight: 500,
-            animation: "savedPulse 1.5s ease",
-            boxShadow: "0 4px 16px rgba(40,30,20,0.2)",
           }}
         >
           ✓ Saved
@@ -641,20 +662,11 @@ export default function WeddingPlanner() {
       )}
       {saveError && (
         <div
+          className="status-toast"
           style={{
-            position: "fixed",
-            top: "12px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 999,
             background: "#c0705b",
             color: "#faf5ef",
-            padding: "6px 16px",
-            borderRadius: "20px",
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "12px",
-            fontWeight: 500,
-            boxShadow: "0 4px 16px rgba(40,30,20,0.2)",
+            animationIterationCount: "infinite", // Stay visible on error
           }}
         >
           ⚠ Save failed, will retry

@@ -1507,7 +1507,7 @@ export default function WeddingPlanner() {
               style={{
                 ...card,
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr",
+                gridTemplateColumns: "1fr 1fr 1fr",
                 textAlign: "center",
                 gap: "20px",
               }}
@@ -1524,7 +1524,7 @@ export default function WeddingPlanner() {
                 </div>
                 <p style={sectionLabel}>Invitations</p>
               </div>
-              <div style={{ gridColumn: "span 2", marginBottom: "-10px" }}>
+              <div>
                 <div style={{ fontSize: "36px", fontWeight: 300, color: "#7da07d" }}>
                   {attendingGuests}
                 </div>
@@ -1776,6 +1776,12 @@ export default function WeddingPlanner() {
                         value={g.name}
                         onChange={(e) => updateIndividualGuest(h.id, g.id, { name: e.target.value }, true)}
                         onBlur={(e) => updateIndividualGuest(h.id, g.id, { name: e.target.value }, false)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            addIndividualGuest(h.id);
+                          }
+                        }}
+                        autoFocus={!g.name} // Autofocus if name is empty (newly added)
                         placeholder="Guest Name"
                         style={{
                           flex: 1,

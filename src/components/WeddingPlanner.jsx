@@ -176,6 +176,7 @@ export default function WeddingPlanner() {
   const [guests, setGuests] = useState(DEFAULT_GUESTS);
   const [cateringPrice, setCateringPrice] = useState(150);
   const [notes, setNotes] = useState("");
+  const [activeMenu, setActiveMenu] = useState(null);
 
   // Modals
   const [showAddTask, setShowAddTask] = useState(false);
@@ -210,6 +211,13 @@ export default function WeddingPlanner() {
       }
       setLoaded(true);
     })();
+  }, []);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setActiveMenu(null);
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
   // Build the data object for saving
@@ -1375,18 +1383,6 @@ export default function WeddingPlanner() {
                     }
                     onBlur={(e) => (e.target.style.borderBottom = "transparent")}
                   />
-                  <button
-                    onClick={() => deleteGuestCategory(g.id)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#d4c8ba",
-                      cursor: "pointer",
-                      fontSize: "14px",
-                    }}
-                  >
-                    ×
-                  </button>
                 </div>
                 <div
                   style={{
@@ -1447,6 +1443,66 @@ export default function WeddingPlanner() {
                   >
                     +
                   </button>
+                  <div style={{ position: "relative" }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveMenu(activeMenu === g.id ? null : g.id);
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#d4c8ba",
+                        cursor: "pointer",
+                        fontSize: "18px",
+                        padding: "0 4px",
+                        lineHeight: 1,
+                      }}
+                    >
+                      •••
+                    </button>
+                    {activeMenu === g.id && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "100%",
+                          right: 0,
+                          background: "#fff",
+                          boxShadow: "0 2px 10px rgba(60,45,30,0.1)",
+                          borderRadius: "8px",
+                          padding: "4px",
+                          zIndex: 10,
+                          minWidth: "120px",
+                          animation: "fadeIn 0.2s ease",
+                        }}
+                      >
+                        <button
+                          onClick={() => deleteGuestCategory(g.id)}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            padding: "8px 12px",
+                            textAlign: "left",
+                            background: "transparent",
+                            border: "none",
+                            color: "#c0705b",
+                            fontFamily: "'DM Sans', sans-serif",
+                            fontSize: "13px",
+                            cursor: "pointer",
+                            borderRadius: "6px",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.target.style.background = "#fff5f5")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.target.style.background = "transparent")
+                          }
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

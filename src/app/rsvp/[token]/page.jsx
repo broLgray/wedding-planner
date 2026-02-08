@@ -109,7 +109,7 @@ export default function RSVPPage() {
                                             ...(guest.rsvp_status === "attending" ? styles.toggleBtnActive : {})
                                         }}
                                     >
-                                        Joyfully Accepts
+                                        Accept
                                     </button>
                                     <button
                                         type="button"
@@ -119,7 +119,7 @@ export default function RSVPPage() {
                                             ...(guest.rsvp_status === "declined" ? styles.toggleBtnActiveDeclined : {})
                                         }}
                                     >
-                                        Regretfully Declines
+                                        Decline
                                     </button>
                                 </div>
                             </div>

@@ -196,9 +196,16 @@ export default function WeddingPlanner() {
   const [showSaved, setShowSaved] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const saveTimeout = useRef(null);
+  const lastKnownData = useRef(null);
 
   const hydrateStates = useCallback((data) => {
     if (!data) return;
+
+    // Prevent loop: only update if data actually changed
+    const dataStr = JSON.stringify(data);
+    if (lastKnownData.current === dataStr) return;
+    lastKnownData.current = dataStr;
+
     if (data.weddingDate) setWeddingDate(data.weddingDate);
     if (data.partnerNames) setPartnerNames(data.partnerNames);
     if (data.totalBudget) setTotalBudget(data.totalBudget);
@@ -302,10 +309,17 @@ export default function WeddingPlanner() {
   // Auto-save with debounce
   useEffect(() => {
     if (!loaded) return;
+
+    // Check if we already saved this exact payload
+    const currentPayload = buildSavePayload();
+    const payloadStr = JSON.stringify(currentPayload);
+    if (lastKnownData.current === payloadStr) return;
+
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
     saveTimeout.current = setTimeout(async () => {
-      const result = await savePlannerData(buildSavePayload());
+      const result = await savePlannerData(currentPayload);
       if (result.success) {
+        lastKnownData.current = payloadStr; // Mark as known
         setSaveError(false);
         setShowSaved(true);
         setTimeout(() => setShowSaved(false), 1500);

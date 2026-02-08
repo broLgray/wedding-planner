@@ -97,29 +97,31 @@ export default function RSVPPage() {
                 <form onSubmit={handleSubmit} style={styles.form}>
                     {household.guests.map((guest, index) => (
                         <div key={guest.id} style={styles.guestSection}>
-                            <h3 style={styles.guestName}>{guest.name}</h3>
+                            <div style={styles.guestHeader}>
+                                <h3 style={styles.guestName}>{guest.name}</h3>
 
-                            <div style={styles.toggleGroup}>
-                                <button
-                                    type="button"
-                                    onClick={() => handleGuestUpdate(guest.id, "rsvp_status", "attending")}
-                                    style={{
-                                        ...styles.toggleBtn,
-                                        ...(guest.rsvp_status === "attending" ? styles.toggleBtnActive : {})
-                                    }}
-                                >
-                                    Joyfully Accepts
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleGuestUpdate(guest.id, "rsvp_status", "declined")}
-                                    style={{
-                                        ...styles.toggleBtn,
-                                        ...(guest.rsvp_status === "declined" ? styles.toggleBtnActiveDeclined : {})
-                                    }}
-                                >
-                                    Regretfully Declines
-                                </button>
+                                <div style={styles.toggleGroup}>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleGuestUpdate(guest.id, "rsvp_status", "attending")}
+                                        style={{
+                                            ...styles.toggleBtn,
+                                            ...(guest.rsvp_status === "attending" ? styles.toggleBtnActive : {})
+                                        }}
+                                    >
+                                        Joyfully Accepts
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleGuestUpdate(guest.id, "rsvp_status", "declined")}
+                                        style={{
+                                            ...styles.toggleBtn,
+                                            ...(guest.rsvp_status === "declined" ? styles.toggleBtnActiveDeclined : {})
+                                        }}
+                                    >
+                                        Regretfully Declines
+                                    </button>
+                                </div>
                             </div>
 
                             {guest.rsvp_status === "attending" && (
@@ -202,28 +204,35 @@ const styles = {
     guestSection: {
         marginBottom: "24px",
     },
+    guestHeader: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: "12px",
+        marginBottom: "16px",
+        flexWrap: "wrap",
+    },
     guestName: {
-        fontSize: "22px",
+        fontSize: "20px",
         fontWeight: 600,
         color: "#3d2e1f",
-        marginBottom: "16px",
+        margin: 0,
     },
     toggleGroup: {
         display: "flex",
-        gap: "10px",
-        marginBottom: "20px",
+        gap: "8px",
     },
     toggleBtn: {
-        flex: 1,
-        padding: "12px",
+        padding: "8px 16px",
         borderRadius: "8px",
         border: "1px solid #d4c8ba",
         background: "transparent",
         color: "#6b5443",
-        fontSize: "16px",
+        fontSize: "14px",
         fontFamily: "'DM Sans', sans-serif",
         cursor: "pointer",
         transition: "all 0.2s",
+        whiteSpace: "nowrap",
     },
     toggleBtnActive: {
         background: "#7da07d",

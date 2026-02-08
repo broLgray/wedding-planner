@@ -1431,25 +1431,6 @@ export default function WeddingPlanner() {
         {/* ═══ GUESTS ═══ */}
         {activeTab === "guests" && (
           <div style={{ animation: "fadeIn 0.3s ease" }}>
-            <div style={{ ...card, padding: "12px", marginBottom: "16px" }}>
-              <div style={{ position: "relative" }}>
-                <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#b5a898" }}>🔍</span>
-                <input
-                  type="text"
-                  placeholder="Search guests or households..."
-                  value={guestSearch}
-                  onChange={(e) => setGuestSearch(e.target.value)}
-                  style={{
-                    ...inputStyle,
-                    margin: 0,
-                    paddingLeft: "36px",
-                    background: "#fff",
-                    borderColor: "rgba(140,110,85,0.15)",
-                  }}
-                />
-              </div>
-            </div>
-
             <div
               style={{
                 ...card,
@@ -1521,6 +1502,25 @@ export default function WeddingPlanner() {
                     }}
                   />
                 </div>
+              </div>
+            </div>
+
+            <div style={{ ...card, padding: "12px", marginBottom: "16px" }}>
+              <div style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#b5a898" }}>🔍</span>
+                <input
+                  type="text"
+                  placeholder="Search guests or households..."
+                  value={guestSearch}
+                  onChange={(e) => setGuestSearch(e.target.value)}
+                  style={{
+                    ...inputStyle,
+                    margin: 0,
+                    paddingLeft: "36px",
+                    background: "#fff",
+                    borderColor: "rgba(140,110,85,0.15)",
+                  }}
+                />
               </div>
             </div>
 

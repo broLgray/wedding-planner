@@ -5,14 +5,10 @@ import { useAuth } from "./AuthProvider";
 import { savePlannerData, loadPlannerData, deletePlannerData } from "@/lib/planner-data";
 import { getSupabase } from "@/lib/supabase";
 import {
-  fetchHouseholds,
-  createHousehold,
-  updateHousehold,
-  deleteHousehold,
-  addGuest,
   updateGuest,
   removeGuest,
-  migrateGuests
+  migrateGuests,
+  syncWeddingProfile
 } from "@/lib/guests";
 
 
@@ -355,6 +351,8 @@ export default function WeddingPlanner() {
       if (result.success) {
         lastKnownData.current = payloadStr; // Mark as known
         setSaveError(false);
+        // Also sync public profile
+        syncWeddingProfile(partnerNames, weddingDate);
       } else {
         setSaveError(true);
         setTimeout(() => setSaveError(false), 3000);
@@ -2207,30 +2205,89 @@ export default function WeddingPlanner() {
       <Modal
         isOpen={!!showQRCode}
         onClose={() => setShowQRCode(null)}
-        title="RSVP QR Code"
+        title="RSVP & Invitation"
       >
         <div style={{ textAlign: "center", padding: "10px 0" }}>
           <p style={{ ...sectionLabel, marginBottom: "20px" }}>Share this with your guests</p>
-          <div style={{
+
+          <div id="qr-container" style={{
             background: "#fff",
             padding: "20px",
             borderRadius: "16px",
             display: "inline-block",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
+            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+            marginBottom: "24px"
           }}>
             <img
+              id="qr-image"
               src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/rsvp/${showQRCode}` : '')}`}
               alt="QR Code"
               style={{ display: "block", width: "200px", height: "200px" }}
+              crossOrigin="anonymous"
             />
           </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <button
+              onClick={async () => {
+                const response = await fetch(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(window.location.origin + '/rsvp/' + showQRCode)}`);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `RSVP-QR-${showQRCode}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+              }}
+              style={{ ...btnPrimary, margin: 0 }}
+            >
+              📥 Download QR Code
+            </button>
+
+            <button
+              onClick={() => {
+                const link = `${window.location.origin}/invite/${showQRCode}`;
+                navigator.clipboard.writeText(link);
+                setCopyingLink("invite-" + showQRCode);
+                setTimeout(() => setCopyingLink(null), 2000);
+              }}
+              style={{ ...btnPrimary, background: "#fdf8f2", color: "#4a3728", border: "1px solid #d4c8ba", margin: 0 }}
+            >
+              {copyingLink === "invite-" + showQRCode ? "✅ Link Copied!" : "💌 Copy Invitation Link"}
+            </button>
+
+            <button
+              onClick={async () => {
+                const shareData = {
+                  title: 'Wedding Invitation',
+                  text: `You are cordially invited to or wedding! Please RSVP here:`,
+                  url: `${window.location.origin}/invite/${showQRCode}`
+                };
+                if (navigator.share) {
+                  try {
+                    await navigator.share(shareData);
+                  } catch (err) {
+                    console.log('Share failed', err);
+                  }
+                } else {
+                  copyRSVPLink(showQRCode);
+                }
+              }}
+              style={{ ...btnPrimary, background: "transparent", border: "1px solid #efe8dc", color: "#a0917f", margin: 0 }}
+            >
+              📱 Share via...
+            </button>
+          </div>
+
           <p style={{
-            marginTop: "20px",
-            fontSize: "14px",
-            color: "#a0917f",
-            fontFamily: "'DM Sans', sans-serif"
+            marginTop: "24px",
+            fontSize: "13px",
+            color: "#b5a898",
+            fontFamily: "'DM Sans', sans-serif",
+            lineHeight: "1.5"
           }}>
-            Guests can scan this to RSVP directly.
+            Download the QR to print on paper invites,<br />or share the digital link directly with guests.
           </p>
         </div>
       </Modal>

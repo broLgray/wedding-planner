@@ -190,3 +190,44 @@ export async function migrateGuests(oldGuests) {
 
     return allSuccess;
 }
+
+/**
+ * Sync public wedding profile details.
+ */
+export async function syncWeddingProfile(partnerNames, weddingDate) {
+    const supabase = getSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { error } = await supabase
+        .from("wedding_profiles")
+        .upsert({
+            user_id: user.id,
+            partner_names: partnerNames,
+            wedding_date: weddingDate
+        }, { onConflict: "user_id" });
+
+    if (error) {
+        console.error("Error syncing wedding profile:", error);
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Fetch wedding profile (Public).
+ */
+export async function fetchWeddingProfile(userId) {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+        .from("wedding_profiles")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
+
+    if (error) {
+        console.error("Error fetching wedding profile:", error);
+        return null;
+    }
+    return data;
+}

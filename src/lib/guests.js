@@ -175,11 +175,16 @@ export async function submitRSVP(householdId, guestUpdates) {
 export async function migrateGuests(oldGuests) {
     if (!oldGuests || oldGuests.length === 0) return true;
 
+    let allSuccess = true;
     for (const group of oldGuests) {
         // Check if group has guests (new format) or just count (old format)
         const initialGuests = group.guests || Array.from({ length: group.count || 0 }).map(() => ({ name: "Guest" }));
-        await createHousehold(group.name || "Group", group.category || "Other", initialGuests);
+        const result = await createHousehold(group.name || "Group", group.category || "Other", initialGuests);
+        if (!result) {
+            allSuccess = false;
+            break;
+        }
     }
 
-    return true;
+    return allSuccess;
 }

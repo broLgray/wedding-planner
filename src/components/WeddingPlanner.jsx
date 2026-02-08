@@ -193,6 +193,8 @@ export default function WeddingPlanner() {
   const [activeMenu, setActiveMenu] = useState(null);
   const [guestSearch, setGuestSearch] = useState("");
   const [copyingLink, setCopyingLink] = useState(null);
+  const [dbError, setDbError] = useState(null);
+
 
   // Modals
   const [showAddTask, setShowAddTask] = useState(false);
@@ -229,16 +231,20 @@ export default function WeddingPlanner() {
 
     // Migration: If guest data exists in user_data, migrate to separate tables
     if (data.guests && data.guests.length > 0) {
-      migrateGuests(data.guests).then(async () => {
-        // Clear guests from user_data after migration
-        const currentData = await loadPlannerData();
-        if (currentData && currentData.guests) {
-          delete currentData.guests;
-          await savePlannerData(currentData);
+      migrateGuests(data.guests).then(async (success) => {
+        if (success) {
+          // Clear guests from user_data after migration
+          const currentData = await loadPlannerData();
+          if (currentData && currentData.guests) {
+            delete currentData.guests;
+            await savePlannerData(currentData);
+          }
+          // Refresh households
+          const hData = await fetchHouseholds();
+          setHouseholds(hData);
+        } else {
+          console.error("Migration failed - guest data preserved in legacy format");
         }
-        // Refresh households
-        const hData = await fetchHouseholds();
-        setHouseholds(hData);
       });
     }
 
@@ -501,10 +507,14 @@ export default function WeddingPlanner() {
     if (result) {
       const hData = await fetchHouseholds();
       setHouseholds(hData);
+      setDbError(null);
+    } else {
+      setDbError("Database error. Please check if your Supabase tables are set up correctly.");
     }
     setNewGuestName("");
     setShowAddGuest(false);
   };
+
 
   const addIndividualGuest = async (householdId) => {
     const result = await addGuest(householdId);
@@ -732,6 +742,30 @@ export default function WeddingPlanner() {
           }}
         >
           ⚠ Save failed, will retry
+        </div>
+      )}
+
+      {dbError && (
+        <div
+          className="status-toast"
+          style={{
+            background: "#c0705b",
+            color: "#faf5ef",
+            animation: "fadeIn 0.3s ease",
+          }}
+        >
+          {dbError}
+          <button
+            onClick={() => setDbError(null)}
+            style={{
+              marginLeft: "10px",
+              background: "transparent",
+              border: "none",
+              color: "#fff",
+              cursor: "pointer",
+              fontWeight: "bold"
+            }}
+          >✕</button>
         </div>
       )}
 

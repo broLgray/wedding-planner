@@ -461,11 +461,11 @@ export default function WeddingPlanner() {
   };
 
   const tabs = [
-    { id: "overview", label: "Home", icon: "◈" },
-    { id: "timeline", label: "Tasks", icon: "◇" },
-    { id: "budget", label: "Budget", icon: "◆" },
-    { id: "guests", label: "Guests", icon: "◉" },
-    { id: "notes", label: "Notes", icon: "✎" },
+    { id: "overview", label: "Home" },
+    { id: "timeline", label: "Tasks" },
+    { id: "budget", label: "Budget" },
+    { id: "guests", label: "Guests" },
+    { id: "notes", label: "Notes" },
   ];
 
   // ─── Shared Styles ────────────────────────────────────────────
@@ -781,9 +781,6 @@ export default function WeddingPlanner() {
               fontWeight: activeTab === tab.id ? 600 : 400,
             }}
           >
-            <span style={{ marginRight: "4px", fontSize: "10px" }}>
-              {tab.icon}
-            </span>{" "}
             {tab.label}
           </button>
         ))}

@@ -239,32 +239,75 @@ export async function findHouseholdsByName(searchTerm) {
     const supabase = getSupabase();
     if (!searchTerm || searchTerm.length < 2) return [];
 
-    // Search both households (group name) and guests (individual names)
-    // We also join wedding_profiles so guests can see which wedding they are RSVPing for
-    const { data: households, error: hError } = await supabase
+    const cleanTerm = searchTerm.trim();
+
+    // 1. Search Guests first (most common way people search)
+    const { data: guestEntries, error: gError } = await supabase
+        .from("guests")
+        .select(`
+            name,
+            household:households (
+                id,
+                name,
+                rsvp_token,
+                user_id
+            )
+        `)
+        .ilike("name", `%${cleanTerm}%`)
+        .limit(10);
+
+    if (gError) console.error("Guest search error:", gError);
+
+    // 2. Search Households by group name
+    const { data: householdEntries, error: hError } = await supabase
         .from("households")
         .select(`
             id,
             name,
             rsvp_token,
-            user_id,
-            guests!inner (
-                name
-            )
+            user_id
         `)
-        // CRITICAL: No spaces after commas in the .or() string for PostgREST
-        .or(`name.ilike.%${searchTerm}%,guests.name.ilike.%${searchTerm}%`)
-        .limit(20);
+        .ilike("name", `%${cleanTerm}%`)
+        .limit(10);
 
-    if (hError) {
-        console.error("Error searching households:", hError);
-        return [];
+    if (hError) console.error("Household search error:", hError);
+
+    // 3. Merge and De-duplicate results
+    const householdMap = new Map();
+
+    // Process guest matches
+    if (guestEntries) {
+        guestEntries.forEach(entry => {
+            if (entry.household) {
+                householdMap.set(entry.household.id, entry.household);
+            }
+        });
     }
 
-    // Now fetch the couple names for these households to help guests identify the right wedding
+    // Process household matches
+    if (householdEntries) {
+        householdEntries.forEach(h => {
+            householdMap.set(h.id, h);
+        });
+    }
+
+    const households = Array.from(householdMap.values());
+
+    // 4. Fetch full guest lists and couple names for the results
     const results = await Promise.all(households.map(async (h) => {
+        // Fetch ALL guests for this household so we can show them in the preview
+        const { data: allGuests } = await supabase
+            .from("guests")
+            .select("name")
+            .eq("household_id", h.id);
+
         const profile = await fetchWeddingProfile(h.user_id);
-        return { ...h, couple: profile?.partner_names || "A Wedding" };
+
+        return {
+            ...h,
+            guests: allGuests || [],
+            couple: profile?.partner_names || "A Wedding"
+        };
     }));
 
     return results;

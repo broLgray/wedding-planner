@@ -1782,7 +1782,7 @@ export default function WeddingPlanner() {
                           }
                         }}
                         autoFocus={!g.name} // Autofocus if name is empty (newly added)
-                        placeholder="Guest Name"
+                        placeholder="Guest"
                         style={{
                           flex: 1,
                           border: "none",

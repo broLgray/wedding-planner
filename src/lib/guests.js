@@ -46,7 +46,7 @@ export async function createHousehold(name, category, initialGuests = []) {
     if (initialGuests.length > 0) {
         const guestsToInsert = initialGuests.map(g => ({
             household_id: household.id,
-            name: g.name || "Guest",
+            name: g.name || "",
             rsvp_status: g.rsvp_status || "pending"
         }));
 
@@ -101,7 +101,7 @@ export async function updateGuest(id, updates) {
 /**
  * Add a guest to an existing household.
  */
-export async function addGuest(householdId, name = "Guest") {
+export async function addGuest(householdId, name = "") {
     const supabase = getSupabase();
     const { data, error } = await supabase
         .from("guests")

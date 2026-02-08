@@ -208,6 +208,7 @@ export default function WeddingPlanner() {
   const [showAddPhase, setShowAddPhase] = useState(false);
   const [showAddBudget, setShowAddBudget] = useState(false);
   const [showAddGuest, setShowAddGuest] = useState(false);
+  const [showFabMenu, setShowFabMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showQRCode, setShowQRCode] = useState(null); // stores token for QR
   const [selectedPhase, setSelectedPhase] = useState("");
@@ -534,6 +535,12 @@ export default function WeddingPlanner() {
     setShowAddGuest(false);
   };
 
+  const handleAddGroup = (type) => {
+    setNewGuestGroupType(type);
+    setShowAddGuest(true);
+    setShowFabMenu(false);
+  };
+
 
   const addIndividualGuest = async (householdId) => {
     const result = await addGuest(householdId);
@@ -749,6 +756,10 @@ export default function WeddingPlanner() {
       <style>{`
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fabMenuIn {
+          from { opacity: 0; transform: scale(0.8) translateY(20px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
         .status-toast {
           position: fixed;
           bottom: 0;
@@ -1954,6 +1965,98 @@ export default function WeddingPlanner() {
             </div>
           </div>
         )}
+
+        {/* Guest FAB */}
+        {activeTab === "guests" && (
+          <>
+            {showFabMenu && (
+              <div
+                onClick={() => setShowFabMenu(false)}
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  background: "rgba(40,30,22,0.15)",
+                  backdropFilter: "blur(2px)",
+                  zIndex: 998,
+                  animation: "fadeIn 0.2s ease"
+                }}
+              />
+            )}
+            <div style={{
+              position: "fixed",
+              bottom: "100px",
+              right: "24px",
+              zIndex: 999,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: "12px"
+            }}>
+              {showFabMenu && (
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                  paddingBottom: "8px",
+                  animation: "fabMenuIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)"
+                }}>
+                  {[
+                    { type: 'family', label: 'Add Family', icon: '👨‍👩‍👧‍👦' },
+                    { type: 'individual', label: 'Add Individual', icon: '👤' },
+                    { type: 'friends', label: 'Add Friend', icon: '👯' }
+                  ].map((opt) => (
+                    <button
+                      key={opt.type}
+                      onClick={() => handleAddGroup(opt.type)}
+                      style={{
+                        background: "#fff",
+                        border: "none",
+                        borderRadius: "20px",
+                        padding: "10px 18px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        boxShadow: "0 4px 12px rgba(40,30,22,0.15)",
+                        cursor: "pointer",
+                        color: "#4a3728",
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      <span style={{ fontSize: "16px" }}>{opt.icon}</span>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button
+                onClick={() => setShowFabMenu(!showFabMenu)}
+                style={{
+                  width: "56px",
+                  height: "56px",
+                  borderRadius: "28px",
+                  background: "#4a3728",
+                  color: "#faf5ef",
+                  border: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "28px",
+                  boxShadow: "0 4px 16px rgba(40,30,22,0.25)",
+                  cursor: "pointer",
+                  transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+                  transform: showFabMenu ? "rotate(135deg)" : "rotate(0)",
+                  fontWeight: 300
+                }}
+              >
+                +
+              </button>
+            </div>
+          </>
+        )}
+
 
         {/* ═══ NOTES ═══ */}
         {activeTab === "notes" && (

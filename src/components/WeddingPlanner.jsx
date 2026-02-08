@@ -524,11 +524,23 @@ export default function WeddingPlanner() {
     }
   };
 
-  const updateIndividualGuest = async (householdId, guestId, updates) => {
+  const updateIndividualGuest = async (householdId, guestId, updates, localOnly = false) => {
+    // 1. Optimistic Update
+    setHouseholds(prev => prev.map(h =>
+      h.id === householdId
+        ? { ...h, guests: h.guests.map(g => g.id === guestId ? { ...g, ...updates } : g) }
+        : h
+    ));
+
+    if (localOnly) return;
+
+    // 2. Sync to DB
     const result = await updateGuest(guestId, updates);
     if (result) {
-      const hData = await fetchHouseholds();
-      setHouseholds(hData);
+      // Optional: re-fetch if you want to ensure total sync, 
+      // but for name changes it's often not needed if local update is correct.
+      // const hData = await fetchHouseholds();
+      // setHouseholds(hData);
     }
   };
 
@@ -540,11 +552,12 @@ export default function WeddingPlanner() {
     }
   };
 
-  const updateHouseholdDetails = async (householdId, updates) => {
+  const updateHouseholdDetails = async (householdId, updates, localOnly = false) => {
+    setHouseholds(prev => prev.map(h => h.id === householdId ? { ...h, ...updates } : h));
+    if (localOnly) return;
     const result = await updateHousehold(householdId, updates);
-    if (result) {
-      const hData = await fetchHouseholds();
-      setHouseholds(hData);
+    if (!result) {
+      setDbError("Failed to update household. Please check your connection.");
     }
   };
 
@@ -1603,7 +1616,8 @@ export default function WeddingPlanner() {
                   <input
                     type="text"
                     value={h.name}
-                    onChange={(e) => updateHouseholdDetails(h.id, { name: e.target.value })}
+                    onChange={(e) => updateHouseholdDetails(h.id, { name: e.target.value }, true)}
+                    onBlur={(e) => updateHouseholdDetails(h.id, { name: e.target.value }, false)}
 
                     placeholder="Household Name (e.g. The Smiths)"
                     style={{
@@ -1759,7 +1773,8 @@ export default function WeddingPlanner() {
                       <input
                         type="text"
                         value={g.name}
-                        onChange={(e) => updateIndividualGuest(h.id, g.id, { name: e.target.value })}
+                        onChange={(e) => updateIndividualGuest(h.id, g.id, { name: e.target.value }, true)}
+                        onBlur={(e) => updateIndividualGuest(h.id, g.id, { name: e.target.value }, false)}
                         placeholder="Guest Name"
                         style={{
                           flex: 1,
@@ -1771,23 +1786,30 @@ export default function WeddingPlanner() {
                           outline: "none",
                         }}
                       />
-                      <div
+                      <select
+                        value={g.rsvp_status || 'pending'}
+                        onChange={(e) => updateIndividualGuest(h.id, g.id, { rsvp_status: e.target.value })}
                         style={{
                           fontSize: "10px",
                           fontFamily: "'DM Sans', sans-serif",
                           textTransform: "uppercase",
-                          padding: "2px 6px",
+                          padding: "4px 8px",
                           borderRadius: "4px",
+                          border: "1px solid transparent",
                           background:
                             g.rsvp_status === 'attending' ? '#e7f3e7' :
                               g.rsvp_status === 'declined' ? '#fdeced' : '#f0e6da',
                           color:
                             g.rsvp_status === 'attending' ? '#2d5e2d' :
                               g.rsvp_status === 'declined' ? '#a33b3b' : '#a0917f',
+                          cursor: "pointer",
+                          outline: "none",
                         }}
                       >
-                        {g.rsvp_status || 'pending'}
-                      </div>
+                        <option value="pending">Pending</option>
+                        <option value="attending">Attending</option>
+                        <option value="declined">Declined</option>
+                      </select>
                       <button
                         onClick={() => removeIndividualGuest(h.id, g.id)}
                         style={{

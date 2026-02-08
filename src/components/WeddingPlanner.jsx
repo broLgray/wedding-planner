@@ -1617,8 +1617,10 @@ export default function WeddingPlanner() {
                     type="text"
                     value={h.name}
                     onChange={(e) => updateHouseholdDetails(h.id, { name: e.target.value }, true)}
-                    onBlur={(e) => updateHouseholdDetails(h.id, { name: e.target.value }, false)}
-
+                    onBlur={(e) => {
+                      updateHouseholdDetails(h.id, { name: e.target.value }, false);
+                      e.target.style.borderBottom = "transparent";
+                    }}
                     placeholder="Household Name (e.g. The Smiths)"
                     style={{
                       fontSize: "18px",
@@ -1632,7 +1634,6 @@ export default function WeddingPlanner() {
                       borderBottom: "1px dashed transparent",
                     }}
                     onFocus={(e) => (e.target.style.borderBottom = "1px dashed #d4c8ba")}
-                    onBlur={(e) => (e.target.style.borderBottom = "transparent")}
                   />
                   <div style={{ position: "relative" }}>
                     <button

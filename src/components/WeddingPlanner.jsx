@@ -179,6 +179,7 @@ export default function WeddingPlanner() {
   const [notes, setNotes] = useState([]);
   const [quickNote, setQuickNote] = useState("");
   const [activeMenu, setActiveMenu] = useState(null);
+  const [guestSearch, setGuestSearch] = useState("");
 
   // Modals
   const [showAddTask, setShowAddTask] = useState(false);
@@ -337,6 +338,15 @@ export default function WeddingPlanner() {
   );
   const totalGuests = guests.reduce((a, h) => a + (h.guests?.length || 0), 0);
   const totalInvitations = guests.length;
+
+  const filteredHouseholds = (guests || []).filter(h => {
+    const search = guestSearch.toLowerCase().trim();
+    if (!search) return true;
+    const householdMatches = h.name.toLowerCase().includes(search);
+    const guestMatches = h.guests?.some(g => g.name.toLowerCase().includes(search));
+    return householdMatches || guestMatches;
+  });
+
   const progress =
     totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
@@ -1421,6 +1431,25 @@ export default function WeddingPlanner() {
         {/* ═══ GUESTS ═══ */}
         {activeTab === "guests" && (
           <div style={{ animation: "fadeIn 0.3s ease" }}>
+            <div style={{ ...card, padding: "12px", marginBottom: "16px" }}>
+              <div style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#b5a898" }}>🔍</span>
+                <input
+                  type="text"
+                  placeholder="Search guests or households..."
+                  value={guestSearch}
+                  onChange={(e) => setGuestSearch(e.target.value)}
+                  style={{
+                    ...inputStyle,
+                    margin: 0,
+                    paddingLeft: "36px",
+                    background: "#fff",
+                    borderColor: "rgba(140,110,85,0.15)",
+                  }}
+                />
+              </div>
+            </div>
+
             <div
               style={{
                 ...card,
@@ -1495,7 +1524,7 @@ export default function WeddingPlanner() {
               </div>
             </div>
 
-            {guests.map((h) => (
+            {filteredHouseholds.map((h) => (
               <div key={h.id} style={{ ...card, padding: "18px" }}>
                 <div
                   style={{
@@ -1596,6 +1625,20 @@ export default function WeddingPlanner() {
                         onChange={(e) =>
                           updateIndividualGuest(h.id, g.id, { name: e.target.value })
                         }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            addIndividualGuest(h.id);
+                            // Brief timeout to let React render the new row
+                            setTimeout(() => {
+                              const householdList = e.target.closest("div[style*='flex-direction: column']");
+                              if (householdList) {
+                                const inputs = householdList.querySelectorAll("input[type='text']");
+                                const lastInput = inputs[inputs.length - 1];
+                                if (lastInput) lastInput.focus();
+                              }
+                            }, 50);
+                          }
+                        }}
                         placeholder="Guest name"
                         style={{
                           flex: 1,

@@ -503,7 +503,7 @@ export default function WeddingPlanner() {
 
   const addGuestCategory = async () => {
     if (!newGuestName.trim()) return;
-    const result = await createHousehold(newGuestName.trim(), "Other", [{ name: "Guest" }]);
+    const result = await createHousehold(newGuestName.trim(), "Other", [{ name: "" }]);
     if (result) {
       const hData = await fetchHouseholds();
       setHouseholds(hData);
@@ -1778,6 +1778,9 @@ export default function WeddingPlanner() {
                         onBlur={(e) => updateIndividualGuest(h.id, g.id, { name: e.target.value }, false)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
+                            // First, ensure the current name is saved to DB
+                            updateIndividualGuest(h.id, g.id, { name: e.target.value }, false);
+                            // Then add the new guest
                             addIndividualGuest(h.id);
                           }
                         }}

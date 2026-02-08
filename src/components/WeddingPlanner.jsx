@@ -174,6 +174,7 @@ export default function WeddingPlanner() {
   );
   const [timeline, setTimeline] = useState(DEFAULT_TIMELINE);
   const [guests, setGuests] = useState(DEFAULT_GUESTS);
+  const [cateringPrice, setCateringPrice] = useState(150);
   const [notes, setNotes] = useState("");
 
   // Modals
@@ -204,6 +205,7 @@ export default function WeddingPlanner() {
         if (data.budgetCategories) setBudgetCategories(data.budgetCategories);
         if (data.timeline) setTimeline(data.timeline);
         if (data.guests) setGuests(data.guests);
+        if (data.cateringPrice) setCateringPrice(data.cateringPrice);
         if (data.notes !== undefined) setNotes(data.notes);
       }
       setLoaded(true);
@@ -219,9 +221,10 @@ export default function WeddingPlanner() {
       budgetCategories,
       timeline,
       guests,
+      cateringPrice,
       notes,
     }),
-    [weddingDate, partnerNames, totalBudget, budgetCategories, timeline, guests, notes]
+    [weddingDate, partnerNames, totalBudget, budgetCategories, timeline, guests, cateringPrice, notes]
   );
 
   // Auto-save with debounce
@@ -381,10 +384,25 @@ export default function WeddingPlanner() {
     setGuests((prev) => prev.filter((g) => g.id !== gId));
   };
 
+  const updateGuestName = (gId, newName) => {
+    setGuests((prev) =>
+      prev.map((g) => (g.id === gId ? { ...g, name: newName } : g))
+    );
+  };
+
   const updateGuestCount = (gId, delta) => {
     setGuests((prev) =>
       prev.map((g) =>
         g.id === gId ? { ...g, count: Math.max(0, g.count + delta) } : g
+      )
+    );
+  };
+
+  const setGuestCountValue = (gId, val) => {
+    const num = parseInt(val, 10);
+    setGuests((prev) =>
+      prev.map((g) =>
+        g.id === gId ? { ...g, count: isNaN(num) ? 0 : Math.max(0, num) } : g
       )
     );
   };
@@ -397,6 +415,7 @@ export default function WeddingPlanner() {
     setBudgetCategories(DEFAULT_BUDGET_CATEGORIES);
     setTimeline(DEFAULT_TIMELINE);
     setGuests(DEFAULT_GUESTS);
+    setCateringPrice(150);
     setNotes("");
     setShowSettings(false);
   };
@@ -1268,18 +1287,54 @@ export default function WeddingPlanner() {
               </div>
               <p style={sectionLabel}>Total Guests</p>
               {totalGuests > 0 && (
-                <p
+                <div
                   style={{
                     fontSize: "13px",
                     color: "#a0917f",
                     fontFamily: "'DM Sans', sans-serif",
-                    marginTop: "4px",
+                    marginTop: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
                   }}
                 >
-                  Est. catering: ~${(totalGuests * 45).toLocaleString()}
-                  -${(totalGuests * 75).toLocaleString()}
-                </p>
+                  <span>Est. catering (~${cateringPrice}/pp):</span>
+                  <span style={{ fontWeight: 600, color: "#4a3728" }}>
+                    ${(totalGuests * cateringPrice).toLocaleString()}
+                  </span>
+                </div>
               )}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  marginTop: "8px",
+                  fontSize: "12px",
+                  color: "#b5a898",
+                }}
+              >
+                <span>Price per guest: $</span>
+                <input
+                  type="number"
+                  value={cateringPrice}
+                  onChange={(e) => setCateringPrice(Number(e.target.value))}
+                  style={{
+                    width: "50px",
+                    padding: "2px",
+                    border: "none",
+                    borderBottom: "1px solid #d4c8ba",
+                    textAlign: "center",
+                    fontFamily: "inherit",
+                    fontSize: "inherit",
+                    background: "transparent",
+                    color: "#4a3728",
+                    outline: "none",
+                  }}
+                />
+              </div>
             </div>
 
             {guests.map((g) => (
@@ -1301,21 +1356,37 @@ export default function WeddingPlanner() {
                     gap: "8px",
                   }}
                 >
-                  <span style={{ fontSize: "15px" }}>{g.name}</span>
-                  {!DEFAULT_GUESTS.find((dg) => dg.id === g.id) && (
-                    <button
-                      onClick={() => deleteGuestCategory(g.id)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "#d4c8ba",
-                        cursor: "pointer",
-                        fontSize: "14px",
-                      }}
-                    >
-                      ×
-                    </button>
-                  )}
+                  <input
+                    type="text"
+                    value={g.name}
+                    onChange={(e) => updateGuestName(g.id, e.target.value)}
+                    style={{
+                      fontSize: "15px",
+                      border: "none",
+                      background: "transparent",
+                      color: "#3d2e1f",
+                      fontFamily: "'Cormorant Garamond', serif",
+                      width: "140px",
+                      outline: "none",
+                      borderBottom: "1px dashed transparent",
+                    }}
+                    onFocus={(e) =>
+                      (e.target.style.borderBottom = "1px dashed #d4c8ba")
+                    }
+                    onBlur={(e) => (e.target.style.borderBottom = "transparent")}
+                  />
+                  <button
+                    onClick={() => deleteGuestCategory(g.id)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#d4c8ba",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    ×
+                  </button>
                 </div>
                 <div
                   style={{
@@ -1342,16 +1413,22 @@ export default function WeddingPlanner() {
                   >
                     -
                   </button>
-                  <span
+                  <input
+                    type="number"
+                    value={g.count}
+                    onChange={(e) => setGuestCountValue(g.id, e.target.value)}
                     style={{
                       fontSize: "20px",
                       fontWeight: 600,
-                      minWidth: "32px",
+                      width: "50px",
                       textAlign: "center",
+                      border: "none",
+                      background: "transparent",
+                      fontFamily: "'Cormorant Garamond', serif",
+                      color: "#3d2e1f",
+                      outline: "none",
                     }}
-                  >
-                    {g.count}
-                  </span>
+                  />
                   <button
                     onClick={() => updateGuestCount(g.id, 1)}
                     style={{
